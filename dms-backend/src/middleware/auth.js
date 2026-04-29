@@ -1,0 +1,30 @@
+// JWT-Guard: prüft Authorization-Header und legt Nutzerinfo auf req.user
+const jwt = require('jsonwebtoken');
+
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET fehlt — bitte in .env setzen (siehe .env.example)');
+}
+
+function authMiddleware(req, res, next) {
+  const header = req.headers.authorization;
+  if (!header || !header.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Kein Token' });
+  }
+
+  const token = header.slice(7);
+
+  try {
+    const payload = jwt.verify(token, JWT_SECRET);
+    req.user = {
+      id: payload.sub,
+      email: payload.email,
+      role: payload.role
+    };
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: 'Ungültiger oder abgelaufener Token' });
+  }
+}
+
+module.exports = { authMiddleware, JWT_SECRET };
