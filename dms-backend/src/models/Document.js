@@ -102,13 +102,21 @@ const documentSchema = new Schema(
   }
 );
 
-// REVIEW(claude): Index-Strategie unvollständig.
-// 1) Listings filtern auch auf deletedAt -> Composite-Index nötig:
-//      documentSchema.index({ uploaderId: 1, deletedAt: 1, uploadedAt: -1 });
-// 2) Volltextsuche (siehe routes/documents.js Kommentar) braucht:
-//      documentSchema.index({ title: 'text', 'ocr.text': 'text', labels: 'text' });
-// 3) Folder-Filter ist häufig -> ggf. zusätzlicher Index { uploaderId: 1, folder: 1 }
-documentSchema.index({ uploaderId: 1, uploadedAt: -1 });
+// Listing-Default-Query: nicht-geloescht + chronologisch
+documentSchema.index({ uploaderId: 1, deletedAt: 1, uploadedAt: -1 });
+// Filter nach Labels innerhalb eines Users
 documentSchema.index({ uploaderId: 1, labels: 1 });
+// Filter nach Ordner innerhalb eines Users
+documentSchema.index({ uploaderId: 1, folder: 1 });
+// Volltextsuche ueber Titel, OCR-Text und Labels
+// (Mongo erlaubt nur EINEN Text-Index pro Collection — daher kombiniert)
+documentSchema.index(
+  { title: 'text', 'ocr.text': 'text', labels: 'text' },
+  {
+    weights: { title: 10, labels: 5, 'ocr.text': 1 },
+    default_language: 'german',
+    name: 'document_text_idx',
+  }
+);
 
 module.exports = model('Document', documentSchema);

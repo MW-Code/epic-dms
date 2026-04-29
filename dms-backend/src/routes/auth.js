@@ -23,14 +23,14 @@ router.post('/register', async (req, res) => {
 
     const passwordHash = await bcrypt.hash(password, 10);
 
-    // REVIEW(claude): JEDER Registrant wird Admin — auch der zweite, dritte, n-te.
-    // Empfohlen: Erst-User-Detection: const isFirstUser = (await User.countDocuments()) === 0;
-    // role: isFirstUser ? 'admin' : 'member'
+    // Erster Registrant wird Admin, alle weiteren Member
+    const isFirstUser = (await User.countDocuments()) === 0;
+
     const user = await User.create({
       email,
       displayName,
       passwordHash,
-      role: 'admin' // erster User ist Admin; Rollenmodell später erweiterbar
+      role: isFirstUser ? 'admin' : 'member',
     });
 
     const token = jwt.sign(

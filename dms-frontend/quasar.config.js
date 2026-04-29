@@ -3,6 +3,19 @@
 
 import { defineConfig } from '#q-app/wrappers'
 import { fileURLToPath } from 'node:url'
+import { readFileSync, existsSync } from 'node:fs'
+
+// Einfacher .env-Loader (vermeidet Extra-Dependency).
+// Nimmt KEY=VALUE pro Zeile, ignoriert # Kommentare.
+const envFile = fileURLToPath(new URL('./.env', import.meta.url))
+if (existsSync(envFile)) {
+  for (const line of readFileSync(envFile, 'utf8').split('\n')) {
+    const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/i)
+    if (m && !process.env[m[1]]) {
+      process.env[m[1]] = m[2].replace(/^["']|["']$/g, '')
+    }
+  }
+}
 
 export default defineConfig((ctx) => {
   return {
@@ -39,15 +52,12 @@ export default defineConfig((ctx) => {
       },
 
       vueRouterMode: 'history', // available values: 'hash', 'history'
-      // vueRouterBase,
-      // vueDevtools,
-      // vueOptionsAPI: false,
 
-      // rebuildCache: true, // rebuilds Vite/linter/etc cache on startup
-
-      // publicPath: '/',
-      // analyze: true,
-      // env: {},
+      // Werte landen als process.env.X im Browser-Bundle.
+      // Im Production-Build hinter nginx empfiehlt sich API_URL=/api
+      env: {
+        API_URL: process.env.API_URL || 'http://localhost:3000/api',
+      },
       // rawDefine: {}
       // ignorePublicFolder: true,
       // minify: false,

@@ -20,10 +20,6 @@ function runCommand(file, args = []) {
  * Führt OCR auf einem PDF aus und gibt den erkannten Text zurück.
  * Erwartet, dass `ocrmypdf` im PATH liegt.
  */
-// REVIEW(claude): tmpDir wird nie aufgeräumt -> Tmp-Leak (jeder Upload hinterlässt
-// einen output_ocr.pdf in /tmp). Empfohlen: try/finally mit fs.rmSync(tmpDir, { recursive: true }).
-// Außerdem: '--force-ocr' ist teuer, wenn PDF bereits Textlage hat. Mit '--skip-text'
-// könnten viele Docs schneller durchlaufen.
 async function ocrPdfToText(pdfPath) {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ocrmypdf-'));
   const outputPdf = path.join(tmpDir, 'output_ocr.pdf');
@@ -39,10 +35,17 @@ async function ocrPdfToText(pdfPath) {
     outputPdf
   ];
 
-  await runCommand('ocrmypdf', args);
-
-  const text = fs.readFileSync(sidecarTxt, 'utf8');
-  return text;
+  try {
+    await runCommand('ocrmypdf', args);
+    return fs.readFileSync(sidecarTxt, 'utf8');
+  } finally {
+    // Tmp-Verzeichnis IMMER aufraeumen, auch im Fehlerfall
+    try {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    } catch (cleanupErr) {
+      console.warn('OCR-Tmp-Cleanup fehlgeschlagen:', cleanupErr.message);
+    }
+  }
 }
 
 module.exports = {

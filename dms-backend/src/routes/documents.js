@@ -549,39 +549,22 @@ router.get('/', authMiddleware, async (req, res) => {
 
     const andClauses = [];
 
-    // REVIEW(claude): SKALIERUNGS-BOTTLENECK #2
-    // Regex auf ocr.text -> kein Index nutzbar -> Full Collection Scan bei jeder Suche.
-    // Mit 10k Docs á 5kB OCR-Text = 50MB pro Query durch CPU. Dauert mehrere Sekunden.
-    // Empfohlen: Mongo Text-Index in models/Document.js:
-    //   documentSchema.index({ title: 'text', 'ocr.text': 'text', labels: 'text' });
-    // und hier:
-    //   filter.$text = { $search: q };
-    // Für komplexere Suche (Highlighting, Fuzzy) -> MeiliSearch oder Elastic.
+    // Volltextsuche nutzt den MongoDB-Text-Index (siehe models/Document.js).
+    // Syntax aus parseSearchQuery() wird in $text-Syntax uebersetzt:
+    //   include "Foo"   -> "Foo"
+    //   exclude "Bar"   -> -Bar
+    let textScore = null;
     if (q && q.trim()) {
       const { include, exclude } = parseSearchQuery(q);
 
-      // Include-Terme -> jedes Wort muss irgendwo vorkommen (AND über $and)
-      for (const term of include) {
-        const rx = new RegExp(escapeRegex(term), 'i');
-        andClauses.push({
-          $or: [
-            { title: rx },
-            { 'ocr.text': rx },
-            { labels: rx },
-          ],
-        });
-      }
+      const parts = [
+        ...include.map((t) => `"${t.replace(/"/g, '')}"`),
+        ...exclude.map((t) => `-${t.replace(/[\s"]/g, '')}`),
+      ];
 
-      // Exclude-Terme -> darf nirgends vorkommen
-      for (const term of exclude) {
-        const rx = new RegExp(escapeRegex(term), 'i');
-        andClauses.push({
-          $nor: [
-            { title: rx },
-            { 'ocr.text': rx },
-            { labels: rx },
-          ],
-        });
+      if (parts.length) {
+        filter.$text = { $search: parts.join(' ') };
+        textScore = { score: { $meta: 'textScore' } };
       }
     }
 
@@ -592,19 +575,23 @@ router.get('/', authMiddleware, async (req, res) => {
     const p = Math.max(parseInt(page, 10) || 1, 1);
     const ps = Math.min(Math.max(parseInt(pageSize, 10) || 20, 1), 100);
 
-    // REVIEW(claude): `history` und `notesText` werden hier mit-übertragen, sind aber
-    // für die Liste nicht relevant. Bei vielen Versionen pro Doc bläht das die Payload.
-    // Empfohlen: select({ ocr: 0, notes: 0, history: 0, notesText: 0 })
+    // Bei Textsuche nach Score sortieren, sonst chronologisch
+    const sort = textScore ? { score: { $meta: 'textScore' } } : { uploadedAt: -1 };
+    const projection = {
+      ocr: 0,
+      notes: 0,
+      notesText: 0,
+      history: 0,
+    };
+
+    const query = Document.find(filter, textScore ? { ...projection, ...textScore } : projection)
+      .sort(sort)
+      .skip((p - 1) * ps)
+      .limit(ps)
+      .lean();
+
     const [items, total] = await Promise.all([
-      Document.find(filter)
-        .sort({ uploadedAt: -1 })
-        .skip((p - 1) * ps)
-        .limit(ps)
-        .select({
-          ocr: 0,
-          notes: 0,
-        })
-        .lean(),
+      query,
       Document.countDocuments(filter),
     ]);
 
