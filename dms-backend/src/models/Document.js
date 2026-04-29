@@ -108,15 +108,12 @@ documentSchema.index({ uploaderId: 1, deletedAt: 1, uploadedAt: -1 });
 documentSchema.index({ uploaderId: 1, labels: 1 });
 // Filter nach Ordner innerhalb eines Users
 documentSchema.index({ uploaderId: 1, folder: 1 });
-// Volltextsuche ueber Titel, OCR-Text und Labels
-// (Mongo erlaubt nur EINEN Text-Index pro Collection — daher kombiniert)
-documentSchema.index(
-  { title: 'text', 'ocr.text': 'text', labels: 'text' },
-  {
-    weights: { title: 10, labels: 5, 'ocr.text': 1 },
-    default_language: 'german',
-    name: 'document_text_idx',
-  }
-);
+
+// Volltextsuche ist aktuell als Regex-Substring-Match implementiert
+// (siehe routes/documents.js). Skaliert linear mit Collection-Size,
+// reicht fuer < 10k Dokumente. Fuer groessere Mengen koennte ein
+// Mongo Text-Index oder MeiliSearch ergaenzt werden — Trade-off:
+// $text matcht nur ganze Wortstaemme, was bei Eigennamen Substring
+// nicht findet ("Waib" -> "Waibel" funktioniert mit $text nicht).
 
 module.exports = model('Document', documentSchema);

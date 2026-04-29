@@ -549,22 +549,25 @@ router.get('/', authMiddleware, async (req, res) => {
 
     const andClauses = [];
 
-    // Volltextsuche nutzt den MongoDB-Text-Index (siehe models/Document.js).
-    // Syntax aus parseSearchQuery() wird in $text-Syntax uebersetzt:
-    //   include "Foo"   -> "Foo"
-    //   exclude "Bar"   -> -Bar
-    let textScore = null;
+    // Volltextsuche per case-insensitive Substring-Regex auf title, ocr.text, labels.
+    // Syntax aus parseSearchQuery():
+    //   "Rechnung Steam"   -> beide Begriffe muessen vorkommen (AND)
+    //   "Rechnung -Amazon" -> Amazon darf nirgends vorkommen
     if (q && q.trim()) {
       const { include, exclude } = parseSearchQuery(q);
 
-      const parts = [
-        ...include.map((t) => `"${t.replace(/"/g, '')}"`),
-        ...exclude.map((t) => `-${t.replace(/[\s"]/g, '')}`),
-      ];
+      for (const term of include) {
+        const rx = new RegExp(escapeRegex(term), 'i');
+        andClauses.push({
+          $or: [{ title: rx }, { 'ocr.text': rx }, { labels: rx }],
+        });
+      }
 
-      if (parts.length) {
-        filter.$text = { $search: parts.join(' ') };
-        textScore = { score: { $meta: 'textScore' } };
+      for (const term of exclude) {
+        const rx = new RegExp(escapeRegex(term), 'i');
+        andClauses.push({
+          $nor: [{ title: rx }, { 'ocr.text': rx }, { labels: rx }],
+        });
       }
     }
 
@@ -575,8 +578,6 @@ router.get('/', authMiddleware, async (req, res) => {
     const p = Math.max(parseInt(page, 10) || 1, 1);
     const ps = Math.min(Math.max(parseInt(pageSize, 10) || 20, 1), 100);
 
-    // Bei Textsuche nach Score sortieren, sonst chronologisch
-    const sort = textScore ? { score: { $meta: 'textScore' } } : { uploadedAt: -1 };
     const projection = {
       ocr: 0,
       notes: 0,
@@ -584,14 +585,12 @@ router.get('/', authMiddleware, async (req, res) => {
       history: 0,
     };
 
-    const query = Document.find(filter, textScore ? { ...projection, ...textScore } : projection)
-      .sort(sort)
-      .skip((p - 1) * ps)
-      .limit(ps)
-      .lean();
-
     const [items, total] = await Promise.all([
-      query,
+      Document.find(filter, projection)
+        .sort({ uploadedAt: -1 })
+        .skip((p - 1) * ps)
+        .limit(ps)
+        .lean(),
       Document.countDocuments(filter),
     ]);
 
