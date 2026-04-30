@@ -57,10 +57,11 @@
           class="q-ml-sm"
         >
           <q-avatar size="32px" color="primary" text-color="white" class="epic-avatar">
-            {{ userInitials }}
+            <span v-if="userInitials">{{ userInitials }}</span>
+            <q-icon v-else name="mdi-account" size="20px" />
           </q-avatar>
           <q-menu anchor="bottom right" self="top right" class="epic-menu">
-            <q-list style="min-width: 200px">
+            <q-list style="min-width: 220px">
               <q-item>
                 <q-item-section>
                   <q-item-label class="text-weight-medium">{{ userDisplayName }}</q-item-label>
@@ -68,12 +69,6 @@
                 </q-item-section>
               </q-item>
               <q-separator />
-              <q-item clickable v-close-popup>
-                <q-item-section avatar>
-                  <q-icon name="settings" />
-                </q-item-section>
-                <q-item-section>Einstellungen</q-item-section>
-              </q-item>
               <q-item clickable v-close-popup @click="authStore.logout()">
                 <q-item-section avatar>
                   <q-icon name="logout" color="negative" />
@@ -106,16 +101,30 @@ const search = computed({
   set: (val) => uiStore.setSearchQuery(val),
 })
 
-const userDisplayName = computed(() => authStore.user?.displayName || 'Benutzer')
+const userDisplayName = computed(() => {
+  const u = authStore.user
+  return u?.displayName || u?.email || 'Benutzer'
+})
 const userEmail = computed(() => authStore.user?.email || '')
+
+// Erste Buchstaben aus displayName, sonst aus dem Local-Part der E-Mail.
+// Liefert leeren String wenn nichts da, dann zeigt das Template ein Icon.
 const userInitials = computed(() => {
-  const name = authStore.user?.displayName || authStore.user?.email || '?'
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((p) => p.charAt(0).toUpperCase())
-    .join('') || '?'
+  const u = authStore.user
+  if (!u) return ''
+
+  if (u.displayName?.trim()) {
+    return u.displayName
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((p) => p.charAt(0).toUpperCase())
+      .join('')
+  }
+  if (u.email) {
+    return u.email.charAt(0).toUpperCase()
+  }
+  return ''
 })
 </script>
 

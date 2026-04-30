@@ -106,7 +106,12 @@ export default defineConfig((ctx) => {
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#framework
     framework: {
-      config: {},
+      config: {
+        // Globaler Dark-Mode fuer alle Quasar-Komponenten.
+        // Sorgt dafuer dass Card-Texte, Checkbox-Labels, Dialog-Headlines etc.
+        // automatisch in heller Schrift gerendert werden.
+        dark: true,
+      },
 
       // iconSet: 'material-icons', // Quasar icon set
       // lang: 'en-US', // Quasar language pack
