@@ -62,31 +62,36 @@ Selbst gehostetes **Dokumenten-Management-System** mit OCR-Volltextsuche, Versio
 ## Architektur
 
 ```
-                                ┌──────────────┐
-                                │   Browser    │
-                                │  (Quasar)    │
-                                └──────┬───────┘
-                                       │ REST + JWT
+                          ┌─────────────────┐
+                          │     Browser     │
+                          └────────┬────────┘
+                                   │
+                  ┌────────────────┴───────────────┐
+                  │   Frontend-Container (nginx)   │
+                  │   serviert SPA + /api-Proxy    │
+                  └────────────────┬───────────────┘
+                                   │ /api/...
+                                   ▼
+       ┌───────────────┐   ┌────────────────────────┐
+       │   MongoDB     │◀──┤   Backend-Container    │
+       │ (Documents,   │   │  (Express, JWT, CRUD)  │
+       │  Users,       │   └───────────┬────────────┘
+       │  Labels)      │               │ enqueue Job
+       └───────────────┘               ▼
+                                ┌─────────────┐
+                                │    Redis    │
+                                │   (BullMQ)  │
+                                └──────┬──────┘
+                                       │ pulls Jobs
                                        ▼
-┌──────────────┐      ┌────────────────────────────────┐
-│   MongoDB    │◀────▶│      Express-Backend           │
-│  (Documents, │      │  Auth, Upload, Search, CRUD    │
-│   Users,     │      └────────┬───────────────────────┘
-│   Labels)    │               │ enqueue Job
-└──────────────┘               ▼
-                       ┌──────────────┐
-                       │    Redis     │
-                       │  (BullMQ)    │
-                       └──────┬───────┘
-                              │ pulls Jobs
-                              ▼
-                    ┌──────────────────────┐
-                    │   OCR-Worker         │
-                    │  (eigener Prozess)   │
-                    │  - ocrmypdf          │
-                    │  - schreibt Mongo    │
-                    └──────────────────────┘
+                          ┌────────────────────────┐
+                          │   Worker-Container     │
+                          │   - ocrmypdf           │
+                          │   - schreibt Mongo     │
+                          └────────────────────────┘
 ```
+
+Alle fünf Services orchestriert die `compose.yml`. Mongo und Redis laufen permanent (Default-Profil); Backend, Worker und Frontend sind im `full`-Profil — so kann man im Dev-Modus die App-Code-Container weglassen und Backend/Frontend lokal mit Hot-Reload entwickeln.
 
 Beim Upload:
 1. Browser sendet PDF an Backend
@@ -99,40 +104,70 @@ Beim Upload:
 
 ## Quick Start
 
-Wenn du **Fedora**, **Podman**, **Node 20+** und **Git** schon hast:
+Es gibt zwei Wege:
+
+### Variante A — Komplettes System aus Containern (empfohlen)
+
+Mit **Podman + podman-compose** (oder Docker + docker compose) startet alles per Befehl:
 
 ```bash
 # 1. Repo klonen
 git clone https://github.com/MW-Code/epic-dms.git
 cd epic-dms
 
-# 2. System-Pakete fuer OCR
-sudo dnf install -y ocrmypdf tesseract-langpack-deu
-
-# 3. Backend
-cd dms-backend
+# 2. .env am Root anlegen + Werte setzen
 cp .env.example .env
-# .env oeffnen und JWT_SECRET, MONGO_INITDB_*, MONGO_URI sinnvoll setzen
-# (siehe Abschnitt "Konfiguration" unten)
-npm install
+# In .env: JWT_SECRET, MONGO_INITDB_ROOT_PASSWORD generieren
+#   node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
 
-# 4. Mongo + Redis als Container (siehe "Detaillierte Installation"
-#    fuer die genauen Befehle)
-
-# 5. Backend in Terminal A
-npm start
-
-# 6. Worker in Terminal B
-npm run worker
-
-# 7. Frontend in Terminal C
-cd ../dms-frontend
-cp .env.example .env  # optional, Defaults sind ok
-npm install
-npm run dev
+# 3. Voller Stack: Mongo + Redis + Backend + Worker + Frontend
+podman compose --profile full up -d --build
 ```
 
-App liegt dann auf [http://localhost:9000](http://localhost:9000). Erster Registrant wird automatisch Admin.
+→ Frontend offen unter [http://localhost:8080](http://localhost:8080). Erster Registrant wird automatisch Admin.
+
+Logs anschauen:
+```bash
+podman compose logs -f                  # alle Services
+podman compose logs -f backend worker   # nur die App-Container
+```
+
+Stoppen: `podman compose --profile full down`. Daten bleiben im Volume `dms-backend/docker-data/` persistent erhalten.
+
+### Variante B — Backend lokal, Infra in Containern (Dev-Modus)
+
+Schneller iteriert mit Hot-Reload. Voraussetzung: `Node 20+`, `ocrmypdf` und `tesseract-langpack-deu` installiert.
+
+```bash
+git clone https://github.com/MW-Code/epic-dms.git
+cd epic-dms
+
+# Top-Level .env (Mongo/Redis-Credentials)
+cp .env.example .env
+
+# Nur Mongo + Redis (Default-Profil) starten
+podman compose up -d
+
+# Backend-Setup
+cd dms-backend
+cp .env.example .env
+npm install
+
+# Backend in Terminal A
+npm start
+# Worker in Terminal B
+npm run worker
+
+# Frontend in Terminal C
+cd ../dms-frontend
+npm install
+npm run dev   # http://localhost:9000
+```
+
+System-Deps fuer OCR:
+```bash
+sudo dnf install -y ocrmypdf tesseract-langpack-deu
+```
 
 ---
 

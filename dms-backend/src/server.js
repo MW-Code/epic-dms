@@ -13,6 +13,11 @@ const labelsRouter = require('./routes/labels');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Hinter dem nginx-Proxy (Compose-Setup) muss Express dem X-Forwarded-For-Header
+// vertrauen, damit express-rate-limit IPs korrekt erkennt.
+// "1" = einem Proxy-Hop trauen (nginx), nicht der ganzen Kette.
+app.set('trust proxy', 1);
+
 // Standard-HTTP-Security-Header (X-Frame-Options, CSP-Basics, etc.)
 app.use(helmet());
 

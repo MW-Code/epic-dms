@@ -4,12 +4,23 @@
 // Start: `npm run worker` in einem separaten Terminal.
 require('dotenv').config();
 
+const path = require('node:path');
 const { Worker } = require('bullmq');
 const IORedis = require('ioredis');
 
 const { connectToDatabase } = require('../db');
 const Document = require('../models/Document');
 const { ocrPdfToText } = require('../ocrService');
+
+const UPLOAD_DIR = path.resolve(
+  process.env.UPLOAD_DIR || path.join(__dirname, '..', '..', 'uploads')
+);
+
+function resolveStoragePath(storagePath) {
+  if (!storagePath) return null;
+  if (path.isAbsolute(storagePath)) return storagePath;
+  return path.join(UPLOAD_DIR, storagePath);
+}
 
 const REDIS_URL = process.env.REDIS_URL;
 if (!REDIS_URL) {
@@ -38,7 +49,12 @@ const connection = new IORedis(REDIS_URL, {
       doc.ocr.status = 'processing';
       await doc.save();
 
-      const text = await ocrPdfToText(doc.storagePath);
+      const absPath = resolveStoragePath(doc.storagePath);
+      if (!absPath) {
+        throw new Error(`storagePath fehlt fuer Document ${documentId}`);
+      }
+
+      const text = await ocrPdfToText(absPath);
 
       doc.ocr.text = text;
       doc.ocr.status = 'done';

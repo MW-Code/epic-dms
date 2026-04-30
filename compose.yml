@@ -1,0 +1,100 @@
+# Epic DMS - Compose-Stack
+#
+# DEFAULT-MODUS (ohne Profile) startet nur Mongo + Redis - ideal fuer
+# Entwicklung, wenn du Backend/Worker/Frontend lokal mit npm run dev
+# laufen lassen willst:
+#
+#     podman compose up -d
+#
+# FULL-STACK (Production-Demo, alles in Containern):
+#
+#     podman compose --profile full up -d
+#     # -> Frontend auf http://localhost:8080
+#
+# Werte fuer ${...}-Variablen kommen aus .env (im selben Verzeichnis wie
+# diese Datei). Vorlage: .env.example
+#
+# Uploads + Mongo-Daten persistieren via lokale Bind-Mounts unter
+# ./docker-data und ./dms-backend/uploads.
+
+services:
+  # ---- Infrastruktur (immer laufen) -------------------------------------
+  mongo:
+    image: docker.io/library/mongo:7
+    container_name: dms-mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:?bitte in .env setzen}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:?bitte in .env setzen}
+    ports:
+      - "127.0.0.1:27017:27017"
+    volumes:
+      - ./dms-backend/docker-data/mongo:/data/db:Z
+
+  redis:
+    image: docker.io/library/redis:7-alpine
+    container_name: dms-redis
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - ./dms-backend/docker-data/redis:/data:Z
+
+  # ---- App-Services (nur mit --profile full) ----------------------------
+  backend:
+    profiles: ["full"]
+    build:
+      context: ./dms-backend
+      dockerfile: Dockerfile
+    image: epic-dms-backend:latest
+    container_name: dms-backend
+    restart: unless-stopped
+    depends_on:
+      - mongo
+      - redis
+    environment:
+      PORT: 3000
+      JWT_SECRET: ${JWT_SECRET:?bitte in .env setzen}
+      MONGO_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongo:27017/dms?authSource=admin
+      REDIS_URL: redis://redis:6379
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:8080}
+      OCR_CONCURRENCY: ${OCR_CONCURRENCY:-2}
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      # :U,Z = rootless Podman remappt Datei-Ownership auf den Container-User
+      # plus SELinux-Relabel. Ohne :U gibt's EACCES beim Upload.
+      - ./dms-backend/uploads:/app/uploads:U,z
+
+  worker:
+    profiles: ["full"]
+    image: epic-dms-backend:latest # gleiches Image wie Backend
+    container_name: dms-worker
+    restart: unless-stopped
+    depends_on:
+      - mongo
+      - redis
+      - backend # damit das Image gebuildet ist
+    environment:
+      JWT_SECRET: ${JWT_SECRET:?bitte in .env setzen}
+      MONGO_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongo:27017/dms?authSource=admin
+      REDIS_URL: redis://redis:6379
+      OCR_CONCURRENCY: ${OCR_CONCURRENCY:-2}
+    volumes:
+      - ./dms-backend/uploads:/app/uploads:U,z
+    command: ["node", "src/workers/ocrWorker.js"]
+
+  frontend:
+    profiles: ["full"]
+    build:
+      context: ./dms-frontend
+      dockerfile: Dockerfile
+      args:
+        API_URL: /api
+    image: epic-dms-frontend:latest
+    container_name: dms-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "127.0.0.1:8080:80"

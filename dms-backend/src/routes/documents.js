@@ -13,6 +13,19 @@ const Document = require('../models/Document');
 
 const router = express.Router();
 
+const UPLOAD_DIR = path.resolve(
+  process.env.UPLOAD_DIR || path.join(__dirname, '..', '..', 'uploads')
+);
+
+// Liefert den absoluten Dateipfad fuer ein Document.
+// Neue Docs speichern nur den Basename, alte Docs (vor Phase 2.3) hatten
+// einen absoluten Host-Pfad in storagePath - beides muss hier funktionieren.
+function resolveStoragePath(storagePath) {
+  if (!storagePath) return null;
+  if (path.isAbsolute(storagePath)) return storagePath;
+  return path.join(UPLOAD_DIR, storagePath);
+}
+
 // REVIEW(claude): Mehrere Punkte:
 //   1) `dest` als String -> Multer verwirft den Originalnamen, deshalb der Encoding-Hack
 //      in utils/encoding.js. Mit `defParamCharset: 'utf8'` wäre das nicht nötig.
@@ -175,7 +188,8 @@ router.post(
       });
 
       const originalFileName = fixLatin1ToUtf8(file.originalname || '');
-      doc.storagePath = file.path;
+      // Nur Basename speichern, Lookup ueber UPLOAD_DIR
+      doc.storagePath = file.filename;
       doc.originalFileName = originalFileName;
       doc.mimeType = file.mimetype;
       doc.sizeBytes = file.size;
@@ -318,10 +332,12 @@ if (req.body.labels) {
 
 
 // 1) Erstmal Document mit status "pending" anlegen
+// storagePath nur als Basename - die absolute Pfad-Aufloesung passiert
+// beim Lesen ueber resolveStoragePath() + UPLOAD_DIR.
 let doc = await Document.create({
   uploaderId: user.id,
   originalFileName,
-  storagePath: file.path,
+  storagePath: file.filename,
   mimeType: file.mimetype,
   sizeBytes: file.size,
   uploadedAt: new Date(),
@@ -625,7 +641,8 @@ router.get('/:id/file', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: 'Dokument nicht gefunden' });
     }
 
-    if (!fs.existsSync(doc.storagePath)) {
+    const absPath = resolveStoragePath(doc.storagePath);
+    if (!absPath || !fs.existsSync(absPath)) {
       return res.status(410).json({ error: 'Datei nicht mehr vorhanden' });
     }
 
@@ -639,7 +656,7 @@ router.get('/:id/file', authMiddleware, async (req, res) => {
       `inline; filename="${safeName}"`
     );
 
-    const stream = fs.createReadStream(doc.storagePath);
+    const stream = fs.createReadStream(absPath);
     stream.pipe(res);
   } catch (err) {
     console.error('Fehler beim Document-File:', err);
