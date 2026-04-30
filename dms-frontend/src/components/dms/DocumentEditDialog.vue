@@ -1,13 +1,25 @@
 <template>
   <q-dialog v-model="open">
-    <q-card style="min-width: 420px; max-width: 90vw">
-      <q-card-section class="q-gutter-md">
-        <div class="text-h5">Dokument bearbeiten</div>
+    <q-card class="epic-dialog" style="min-width: 460px; max-width: 90vw">
+      <q-card-section class="row items-center q-pb-md">
+        <q-icon name="mdi-pencil-outline" class="text-primary q-mr-sm" size="24px" />
+        <div class="text-h6 text-weight-medium">Dokument bearbeiten</div>
+        <q-space />
+        <q-btn flat round dense icon="close" @click="cancel" />
+      </q-card-section>
 
-        <!-- Titel -->
-        <q-input v-model="title" label="Titel" outlined dense :disable="!document" />
+      <q-separator dark />
 
-        <!-- Labels -->
+      <q-card-section class="q-gutter-md q-pt-lg">
+        <q-input
+          v-model="title"
+          label="Titel"
+          outlined
+          dense
+          dark
+          :disable="!document"
+        />
+
         <q-select
           v-model="selectedLabels"
           :options="labelOptions"
@@ -18,12 +30,14 @@
           stack-label
           outlined
           dense
+          dark
           input-debounce="0"
           hint="Bestehende Labels wählen oder neue eintippen & Enter drücken"
           new-value-mode="add-unique"
+          popup-content-class="epic-menu"
+          :disable="!document"
           @new-value="createValue"
           @filter="filterFn"
-          :disable="!document"
         />
 
         <q-select
@@ -32,6 +46,7 @@
           label="Ordner (optional)"
           dense
           outlined
+          dark
           clearable
           use-input
           hide-selected
@@ -39,23 +54,23 @@
           emit-value
           map-options
           new-value-mode="add-unique"
+          popup-content-class="epic-menu"
           :disable="!document"
           @new-value="createFolderValue"
         />
-
-        <!-- Debug kannst du später rauswerfen -->
-        <!-- <div class="text-caption text-grey-7 q-mt-xs">
-          DEBUG selectedLabels: {{ selectedLabels }}
-        </div> -->
       </q-card-section>
 
-      <q-card-actions align="right">
-        <q-btn flat label="Abbrechen" @click="cancel" />
+      <q-separator dark />
+
+      <q-card-actions align="right" class="q-pa-md">
+        <q-btn flat no-caps label="Abbrechen" color="grey-5" @click="cancel" />
         <q-btn
-          flat
+          unelevated
+          rounded
+          no-caps
           color="primary"
           label="Speichern"
-          icon="save"
+          icon="mdi-content-save"
           :loading="saving"
           :disable="!document"
           @click="save"

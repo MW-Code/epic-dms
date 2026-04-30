@@ -1,104 +1,124 @@
 <template>
-  <q-page class="flex flex-center bg-grey-10">
+  <q-page class="epic-auth-page flex flex-center" translate="no">
     <div class="full-width row justify-center q-px-md">
-      <q-card class="q-pa-lg shadow-8" style="width: 420px; max-width: 100%">
-        <q-card-section class="text-center q-pb-none">
-          <div class="text-h5 text-primary q-mb-xs">Account erstellen</div>
-          <div class="text-caption text-grey-6">Lege deinen Zugang für das DMS an</div>
-        </q-card-section>
+      <div class="column items-center" style="width: 420px; max-width: 100%">
+        <!-- Branding-Block -->
+        <div class="row items-center q-mb-md">
+          <q-icon name="mdi-shield-lock-outline" size="40px" class="text-primary q-mr-sm" />
+          <div class="epic-wordmark" style="font-size: 32px">Epic DMS</div>
+        </div>
+        <div class="text-center text-grey-5 q-mb-xl">
+          Lege dir in 30 Sekunden deinen eigenen Dokumenten-Safe an.
+        </div>
 
-        <q-card-section>
-          <q-form @submit.prevent="onSubmit" class="q-gutter-md">
-            <q-input
-              v-model="displayName"
-              label="Name"
-              dense
-              outlined
-              :disable="loading"
-              autocomplete="name"
-            >
-              <template #prepend>
-                <q-icon name="person" />
-              </template>
-            </q-input>
+        <q-card class="epic-card full-width q-pa-md">
+          <q-card-section class="q-pb-none">
+            <div class="text-h6 q-mb-xs">Account erstellen</div>
+            <div class="text-caption text-grey-6">Der erste Account wird automatisch zum Admin</div>
+          </q-card-section>
 
-            <q-input
-              v-model="email"
-              label="E-Mail"
-              type="email"
-              dense
-              outlined
-              :disable="loading"
-              autocomplete="email"
-            >
-              <template #prepend>
-                <q-icon name="mail" />
-              </template>
-            </q-input>
-
-            <q-input
-              v-model="password"
-              :type="showPassword ? 'text' : 'password'"
-              label="Passwort"
-              dense
-              outlined
-              :disable="loading"
-              autocomplete="new-password"
-            >
-              <template #prepend>
-                <q-icon name="lock" />
-              </template>
-              <template #append>
-                <q-icon
-                  :name="showPassword ? 'visibility_off' : 'visibility'"
-                  class="cursor-pointer"
-                  @click="showPassword = !showPassword"
-                />
-              </template>
-            </q-input>
-
-            <q-input
-              v-model="passwordConfirm"
-              :type="showPassword ? 'text' : 'password'"
-              label="Passwort wiederholen"
-              dense
-              outlined
-              :disable="loading"
-              :error="passwordsMismatch"
-              error-message="Passwörter stimmen nicht überein"
-            >
-              <template #prepend>
-                <q-icon name="lock" />
-              </template>
-            </q-input>
-
-            <q-checkbox
-              v-model="accept"
-              dense
-              :disable="loading"
-              label="Ich bin mit der lokalen Speicherung meiner Dokumente einverstanden"
-            />
-
-            <q-btn
-              label="Account anlegen"
-              type="submit"
-              color="primary"
-              class="full-width q-mt-sm"
-              :loading="loading"
-            />
-
-            <div class="row justify-center q-mt-sm">
-              <q-btn
-                flat
+          <q-card-section>
+            <q-form @submit.prevent="onSubmit" class="q-gutter-md">
+              <q-input
+                v-model="displayName"
+                label="Name"
+                outlined
                 dense
-                color="primary"
-                label="Ich habe schon einen Account"
-                @click="goLogin"
+                dark
+                :disable="loading"
+                autocomplete="name"
+              >
+                <template #prepend>
+                  <q-icon name="person" />
+                </template>
+              </q-input>
+
+              <q-input
+                v-model="email"
+                label="E-Mail"
+                type="email"
+                outlined
+                dense
+                dark
+                :disable="loading"
+                autocomplete="email"
+              >
+                <template #prepend>
+                  <q-icon name="mail" />
+                </template>
+              </q-input>
+
+              <q-input
+                v-model="password"
+                :type="showPassword ? 'text' : 'password'"
+                label="Passwort"
+                outlined
+                dense
+                dark
+                :disable="loading"
+                autocomplete="new-password"
+              >
+                <template #prepend>
+                  <q-icon name="lock" />
+                </template>
+                <template #append>
+                  <q-icon
+                    :name="showPassword ? 'visibility_off' : 'visibility'"
+                    class="cursor-pointer"
+                    @click="showPassword = !showPassword"
+                  />
+                </template>
+              </q-input>
+
+              <q-input
+                v-model="passwordConfirm"
+                :type="showPassword ? 'text' : 'password'"
+                label="Passwort wiederholen"
+                outlined
+                dense
+                dark
+                :disable="loading"
+                :error="passwordsMismatch"
+                error-message="Passwörter stimmen nicht überein"
+              >
+                <template #prepend>
+                  <q-icon name="lock" />
+                </template>
+              </q-input>
+
+              <q-checkbox
+                v-model="accept"
+                dense
+                :disable="loading"
+                label="Ich bin mit der lokalen Speicherung meiner Dokumente einverstanden"
               />
-            </div>
-          </q-form>
-        </q-card-section>
-      </q-card>
+
+              <q-btn
+                label="Account anlegen"
+                type="submit"
+                color="primary"
+                unelevated
+                rounded
+                no-caps
+                size="md"
+                class="full-width q-mt-sm"
+                :loading="loading"
+              />
+
+              <div class="row justify-center q-mt-sm">
+                <q-btn
+                  flat
+                  dense
+                  no-caps
+                  color="primary"
+                  label="Ich habe schon einen Account"
+                  @click="goLogin"
+                />
+              </div>
+            </q-form>
+          </q-card-section>
+        </q-card>
+      </div>
     </div>
   </q-page>
 </template>
@@ -166,3 +186,10 @@ const goLogin = () => {
   router.push('/login')
 }
 </script>
+
+<style scoped>
+.epic-auth-page {
+  background: var(--epic-bg);
+  min-height: 100vh;
+}
+</style>

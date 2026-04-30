@@ -1,5 +1,5 @@
 <template>
-  <q-page class="q-pa-sm bg-grey-10 fit" style="height: calc(100vh - 50px) !important">
+  <q-page class="q-pa-sm epic-app-bg fit" style="height: calc(100vh - 50px) !important">
     <div class="row no-wrap fit">
       <!-- Sidebar mit Suchfeld und Dokumentliste -->
       <div class="col-3 full-height q-pa-sm">

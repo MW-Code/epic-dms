@@ -1,1 +1,80 @@
-// app global css in SCSS form
+// Globale Custom-Tokens fuer Epic DMS — alles was Quasar-Variablen
+// nicht abdecken (Hintergruende, Glow-Effekte, Wortmarke).
+
+:root {
+  // App-Hintergrund mit dezentem Lila-Schimmer
+  --epic-bg: radial-gradient(circle at top right, rgba(124, 58, 237, 0.12), transparent 55%),
+    radial-gradient(circle at bottom left, rgba(6, 182, 212, 0.08), transparent 50%),
+    #0f0f14;
+
+  // Card-Untergrund (etwas heller als $dark-page) fuer Kontrast in Cards
+  --epic-card: #1a1a23;
+  --epic-card-hover: #20202b;
+
+  // Subtile Trennlinien
+  --epic-border: rgba(255, 255, 255, 0.06);
+  --epic-border-strong: rgba(255, 255, 255, 0.12);
+
+  // Text-Hierarchie
+  --epic-text-primary: #f3f4f6;
+  --epic-text-secondary: rgba(243, 244, 246, 0.7);
+  --epic-text-muted: rgba(243, 244, 246, 0.5);
+}
+
+// Wortmarke "Epic DMS" — wird in Topbar und Login verwendet
+.epic-wordmark {
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  background: linear-gradient(135deg, #a78bfa, #7c3aed 60%, #06b6d4);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  display: inline-block;
+}
+
+// Card-Stil fuer Hauptbereiche
+.epic-card {
+  background: var(--epic-card) !important;
+  border: 1px solid var(--epic-border);
+  border-radius: 12px !important;
+}
+
+// Subtiler Hover-Effekt fuer klickbare Listen-Items
+.epic-hover {
+  transition: background 0.15s ease;
+}
+.epic-hover:hover {
+  background: var(--epic-card-hover);
+}
+
+// Body bekommt den Hintergrund-Gradient (greift in dark-page-Sektionen)
+body.body--dark {
+  background: var(--epic-bg);
+}
+
+// Hauptseite (q-page) nutzt denselben gradient-Background
+.epic-app-bg {
+  background: var(--epic-bg);
+}
+
+// Dialoge: einheitlicher Style mit Epic-Card-Look
+.epic-dialog {
+  background: var(--epic-card) !important;
+  border: 1px solid var(--epic-border-strong);
+  border-radius: 14px !important;
+  color: var(--epic-text-primary);
+}
+
+// Dropdown-Menüs (q-menu / q-select-popup): dunkel + Epic-Card-Look
+.epic-menu {
+  background: var(--epic-card) !important;
+  border: 1px solid var(--epic-border-strong);
+  border-radius: 10px !important;
+  color: var(--epic-text-primary);
+}
+.epic-menu .q-item {
+  color: var(--epic-text-primary);
+}
+.epic-menu .q-item:hover {
+  background: var(--epic-card-hover);
+}

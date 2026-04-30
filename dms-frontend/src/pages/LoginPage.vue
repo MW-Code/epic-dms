@@ -1,65 +1,83 @@
 <template>
-  <q-page class="flex flex-center bg-grey-10">
+  <q-page class="epic-auth-page flex flex-center" translate="no">
     <div class="full-width row justify-center q-px-md">
-      <q-card class="q-pa-lg shadow-8" style="width: 420px; max-width: 100%">
-        <q-card-section class="text-center q-pb-none">
-          <div class="text-h5 text-primary q-mb-xs">DMS Login</div>
-          <div class="text-caption text-grey-6">Melde dich bei deinem Dokumenten-Safe an</div>
-        </q-card-section>
+      <div class="column items-center" style="width: 420px; max-width: 100%">
+        <!-- Branding-Block -->
+        <div class="row items-center q-mb-md">
+          <q-icon name="mdi-shield-lock-outline" size="40px" class="text-primary q-mr-sm" />
+          <div class="epic-wordmark" style="font-size: 32px">Epic DMS</div>
+        </div>
+        <div class="text-center text-grey-5 q-mb-xl">
+          Dein selbst gehosteter Dokumenten-Safe.<br />
+          Privat, durchsuchbar, immer erreichbar.
+        </div>
 
-        <q-card-section>
-          <q-form @submit.prevent="onSubmit" class="q-gutter-md">
-            <q-input
-              v-model="email"
-              label="E-Mail"
-              type="email"
-              autofocus
-              dense
-              outlined
-              :disable="loading"
-              autocomplete="email"
-            >
-              <template #prepend>
-                <q-icon name="mail" />
-              </template>
-            </q-input>
+        <q-card class="epic-card full-width q-pa-md">
+          <q-card-section class="q-pb-none">
+            <div class="text-h6 q-mb-xs">Willkommen zurück</div>
+            <div class="text-caption text-grey-6">Melde dich mit deinem Account an</div>
+          </q-card-section>
 
-            <q-input
-              v-model="password"
-              :type="showPassword ? 'text' : 'password'"
-              label="Passwort"
-              dense
-              outlined
-              :disable="loading"
-              autocomplete="current-password"
-            >
-              <template #prepend>
-                <q-icon name="lock" />
-              </template>
-              <template #append>
-                <q-icon
-                  :name="showPassword ? 'visibility_off' : 'visibility'"
-                  class="cursor-pointer"
-                  @click="showPassword = !showPassword"
-                />
-              </template>
-            </q-input>
+          <q-card-section>
+            <q-form @submit.prevent="onSubmit" class="q-gutter-md">
+              <q-input
+                v-model="email"
+                label="E-Mail"
+                type="email"
+                autofocus
+                outlined
+                dense
+                dark
+                :disable="loading"
+                autocomplete="email"
+              >
+                <template #prepend>
+                  <q-icon name="mail" />
+                </template>
+              </q-input>
 
-            <div class="row items-center justify-between q-mt-xs">
-              <q-checkbox v-model="remember" label="Angemeldet bleiben" dense :disable="loading" />
-              <q-btn flat dense label="Account erstellen" color="primary" @click="goRegister" />
-            </div>
+              <q-input
+                v-model="password"
+                :type="showPassword ? 'text' : 'password'"
+                label="Passwort"
+                outlined
+                dense
+                dark
+                :disable="loading"
+                autocomplete="current-password"
+              >
+                <template #prepend>
+                  <q-icon name="lock" />
+                </template>
+                <template #append>
+                  <q-icon
+                    :name="showPassword ? 'visibility_off' : 'visibility'"
+                    class="cursor-pointer"
+                    @click="showPassword = !showPassword"
+                  />
+                </template>
+              </q-input>
 
-            <q-btn
-              label="Login"
-              type="submit"
-              color="primary"
-              class="full-width q-mt-sm"
-              :loading="loading"
-            />
-          </q-form>
-        </q-card-section>
-      </q-card>
+              <div class="row items-center justify-between">
+                <q-checkbox v-model="remember" label="Angemeldet bleiben" dense :disable="loading" />
+                <q-btn flat dense no-caps label="Account erstellen" color="primary" @click="goRegister" />
+              </div>
+
+              <q-btn
+                label="Login"
+                type="submit"
+                color="primary"
+                unelevated
+                rounded
+                no-caps
+                size="md"
+                class="full-width q-mt-sm"
+                :loading="loading"
+              />
+            </q-form>
+          </q-card-section>
+        </q-card>
+      </div>
     </div>
   </q-page>
 </template>
@@ -89,7 +107,6 @@ const onSubmit = async () => {
   loading.value = true
   try {
     await auth.login(email.value.trim(), password.value)
-    // optional: remember kannst du später für Cookie/Refresh-Logic nutzen
     router.push('/')
   } catch (err) {
     console.error(err)
@@ -104,3 +121,10 @@ const goRegister = () => {
   router.push('/register')
 }
 </script>
+
+<style scoped>
+.epic-auth-page {
+  background: var(--epic-bg);
+  min-height: 100vh;
+}
+</style>

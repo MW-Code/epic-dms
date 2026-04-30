@@ -1,41 +1,42 @@
 <template>
-  <!-- Vollhöhe damit der Scrollbereich im Kartenkörper Platz bekommt -->
   <div class="sidebar-root column q-gutter-sm">
-    <!-- Dokumentliste nimmt die verfügbare Resthöhe ein -->
-    <q-card class="sidebar-card column col">
-      <!-- Header mit Refresh -->
-      <q-card-section class="q-pb-none">
-        <div class="row items-center justify-between">
-          <div :hidden="true" class="text-subtitle1">{{ currentFolderLabel }}</div>
-          <div class="row" style="width: 100%;">
-            <q-select
-              v-model="selectedFolderModel"
-              borderless
-              :options="folders"
-              clearable
-              emit-value
-              map-options
-              class="text-subtitle1 col q-py-ms"
-            >
-              <template #append>
-                <q-btn
-                  dense
-                  round
-                  flat
-                  icon="refresh"
-                  :loading="loadingList"
-                  @click.stop="emit('refresh')"
-                />
-              </template>
-            </q-select>
-          </div>
+    <q-card class="epic-card sidebar-card column col">
+      <!-- Header: Ordnerfilter + Refresh -->
+      <q-card-section class="q-pb-sm">
+        <div class="row items-center no-wrap q-gutter-sm">
+          <q-icon name="mdi-folder-multiple-outline" class="text-primary" size="20px" />
+          <q-select
+            v-model="selectedFolderModel"
+            borderless
+            dense
+            dark
+            :options="folders"
+            clearable
+            emit-value
+            map-options
+            class="col text-body2"
+            popup-content-class="epic-menu"
+          />
+          <q-btn
+            flat
+            dense
+            round
+            size="sm"
+            icon="refresh"
+            :loading="loadingList"
+            @click="emit('refresh')"
+          >
+            <q-tooltip>Liste aktualisieren</q-tooltip>
+          </q-btn>
         </div>
       </q-card-section>
 
-      <!-- Liste im Scrollbereich, Header bleibt oben stehen -->
-      <q-card-section class="col column q-pt-sm" style="padding-bottom: 0">
-        <q-scroll-area class="col">
-          <q-list padding>
+      <q-separator dark />
+
+      <!-- Liste -->
+      <q-card-section class="col q-pa-none">
+        <q-scroll-area class="col fit">
+          <q-list padding class="q-px-sm">
             <template v-if="documents.length">
               <q-item
                 v-for="doc in documents"
@@ -43,19 +44,18 @@
                 clickable
                 :active="doc._id === selectedId"
                 active-class="doc-item-active"
-                class="doc-item q-my-xs"
+                class="doc-item q-mb-xs"
                 @click="emit('select-document', doc)"
               >
                 <q-item-section>
-                  <q-item-label class="text-body2 ellipsis">
+                  <q-item-label class="doc-title ellipsis">
                     {{ doc.title }}
                   </q-item-label>
                   <q-item-label
                     caption
-                    class="ellipsis"
-                    :class="{ 'text-white': doc._id === selectedId }"
+                    class="doc-meta ellipsis"
                   >
-                    {{ formatDateTime(doc.uploadedAt) }}
+                    {{ formatRelative(doc.uploadedAt) }}
                   </q-item-label>
                 </q-item-section>
                 <q-item-section side>
@@ -80,11 +80,13 @@
             </template>
 
             <template v-else>
-              <q-item>
-                <q-item-section>
-                  <q-item-label caption> Noch keine Dokumente gefunden. </q-item-label>
-                </q-item-section>
-              </q-item>
+              <div class="empty-state column items-center q-py-xl text-center">
+                <q-icon name="mdi-file-search-outline" size="56px" class="text-grey-7 q-mb-md" />
+                <div class="text-grey-5 text-body2">Noch keine Dokumente</div>
+                <div class="text-grey-7 text-caption q-mt-xs">
+                  Lade über die Topbar dein erstes PDF hoch.
+                </div>
+              </div>
             </template>
           </q-list>
         </q-scroll-area>
@@ -95,8 +97,8 @@
 
 <script setup>
 import { computed, defineEmits } from 'vue'
+import { formatRelative } from 'src/utils/date'
 
-// Props nur im Template genutzt
 const props = defineProps({
   search: { type: String, default: '' },
   documents: { type: Array, default: () => [] },
@@ -119,84 +121,86 @@ const selectedFolderModel = computed({
   set: (val) => emit('update:selectedFolderId', val || null),
 })
 
-const currentFolderLabel = computed(() =>
-  selectedFolderModel.value ? `Dokumente von ${selectedFolderModel.value}` : 'Alle Dokumente'
-)
-
-function formatDateTime(value) {
-  if (!value) return ''
-  return new Date(value).toLocaleString()
-}
-
 function ocrStatusColor(status) {
   switch (status) {
-    case 'done':
-      return 'positive'
-    case 'processing':
-      return 'info'
-    case 'error':
-      return 'negative'
-    default:
-      return 'grey-6'
+    case 'done': return 'positive'
+    case 'processing': return 'info'
+    case 'error': return 'negative'
+    default: return 'grey-6'
   }
 }
 
 function ocrStatusIcon(status) {
   switch (status) {
-    case 'done':
-      return 'mdi-text-search-variant'
-    case 'error':
-      return 'mdi-alert-circle-outline'
+    case 'done': return 'mdi-text-search-variant'
+    case 'error': return 'mdi-alert-circle-outline'
     case 'pending':
-    default:
-      return 'mdi-timer-sand'
+    default: return 'mdi-timer-sand'
   }
 }
 
 function ocrStatusLabel(status) {
   switch (status) {
-    case 'done':
-      return 'OCR erfolgreich - Volltext durchsuchbar'
-    case 'processing':
-      return 'OCR laeuft gerade'
-    case 'error':
-      return 'OCR fehlgeschlagen'
+    case 'done': return 'OCR erfolgreich - Volltext durchsuchbar'
+    case 'processing': return 'OCR laeuft gerade'
+    case 'error': return 'OCR fehlgeschlagen'
     case 'pending':
-    default:
-      return 'OCR in Warteschlange'
+    default: return 'OCR in Warteschlange'
   }
 }
 </script>
 
 <style scoped>
-/* Volle Höhe, damit der Scrollbereich in der Karte greifen kann */
 .sidebar-root {
   height: 100%;
 }
 
-/* Abgerundete Kartenoptik */
 .sidebar-card {
-  border-radius: 10px;
+  overflow: hidden;
 }
 
-/* Abgerundete List Items */
+/* Listen-Item: dezent, klar, mit Hover */
 .doc-item {
   border-radius: 8px;
+  padding: 10px 12px;
+  transition: background 0.15s ease;
+}
+.doc-item:hover {
+  background: var(--epic-card-hover);
 }
 
-/* Hervorhebung der aktiven Auswahl */
 .doc-item-active {
-  background: #121212; /* Quasar primary */
-  color: white;
-  border-radius: 8px;
+  background: linear-gradient(90deg, rgba(124, 58, 237, 0.18), rgba(124, 58, 237, 0.06)) !important;
+  border: 1px solid rgba(124, 58, 237, 0.4);
+}
+.doc-item-active .doc-title {
+  color: #fff;
+  font-weight: 500;
+}
+.doc-item-active .doc-meta {
+  color: rgba(255, 255, 255, 0.7) !important;
 }
 
-/* OCR-Status-Icon zentrieren und Klickziel fuer Tooltip stabil halten */
+.doc-title {
+  font-size: 14px;
+  color: var(--epic-text-primary);
+}
+
+.doc-meta {
+  font-size: 12px;
+  color: var(--epic-text-muted) !important;
+  margin-top: 2px;
+}
+
 .ocr-icon-wrap {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 24px;
   height: 24px;
+}
+
+.empty-state {
+  padding: 0 16px;
 }
 </style>
