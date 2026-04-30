@@ -49,17 +49,16 @@
           @click="uiStore.openUploadDialog()"
         />
 
-        <!-- User-Menu: Avatar mit Dropdown statt direktem Logout -->
+        <!-- User-Menu: runder Button mit Initialen oder Personen-Icon -->
         <q-btn
           v-if="authStore.isAuthenticated"
-          flat
           round
-          class="q-ml-sm"
+          unelevated
+          size="md"
+          class="q-ml-sm epic-avatar-btn"
+          :label="userInitials || undefined"
+          :icon="userInitials ? undefined : 'mdi-account'"
         >
-          <q-avatar size="32px" color="primary" text-color="white" class="epic-avatar">
-            <span v-if="userInitials">{{ userInitials }}</span>
-            <q-icon v-else name="mdi-account" size="20px" />
-          </q-avatar>
           <q-menu anchor="bottom right" self="top right" class="epic-menu">
             <q-list style="min-width: 220px">
               <q-item>
@@ -166,13 +165,21 @@ const userInitials = computed(() => {
   font-weight: 500;
 }
 
-.epic-avatar {
+/* Avatar-Button: runder Lila-Button mit Initialen oder Icon.
+   q-btn macht die Zentrierung intern selbst, daher minimal-CSS noetig. */
+.epic-avatar-btn {
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
+  background: var(--q-primary);
+  color: white;
   font-weight: 600;
-  font-size: 12px;
+  font-size: 13px;
   border: 2px solid rgba(255, 255, 255, 0.12);
-  transition: border-color 0.15s ease;
+  transition: border-color 0.15s ease, transform 0.15s ease;
 }
-.epic-avatar:hover {
-  border-color: var(--q-primary);
+.epic-avatar-btn:hover {
+  border-color: rgba(255, 255, 255, 0.4);
+  transform: scale(1.05);
 }
 </style>
