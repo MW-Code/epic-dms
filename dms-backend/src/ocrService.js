@@ -25,8 +25,11 @@ async function ocrPdfToText(pdfPath) {
   const outputPdf = path.join(tmpDir, 'output_ocr.pdf');
   const sidecarTxt = path.join(tmpDir, 'output.txt');
 
+  // --skip-text laesst PDFs mit vorhandener Textebene durchlaufen ohne sie neu
+  // zu rastern. Vorteile: schneller, kein Qualitaetsverlust, umgeht einen
+  // Ghostscript-10.x-Bug bei eingebetteten Schriften (rasterizing failed).
   const args = [
-    '--force-ocr',          // zwingt OCR auch bei PDFs, die schon Textlagen melden
+    '--skip-text',
     '--sidecar',
     sidecarTxt,
     '-l',
