@@ -59,12 +59,22 @@
                   </q-item-label>
                 </q-item-section>
                 <q-item-section side>
-                  <q-badge
-                    v-if="doc.ocr?.status"
-                    :color="ocrStatusColor(doc.ocr.status)"
-                    :label="doc.ocr.status"
-                    class="text-uppercase"
-                  />
+                  <div v-if="doc.ocr?.status" class="ocr-icon-wrap">
+                    <q-spinner
+                      v-if="doc.ocr.status === 'processing'"
+                      color="info"
+                      size="20px"
+                    />
+                    <q-icon
+                      v-else
+                      :name="ocrStatusIcon(doc.ocr.status)"
+                      :color="ocrStatusColor(doc.ocr.status)"
+                      size="20px"
+                    />
+                    <q-tooltip anchor="center left" self="center right" :delay="300">
+                      {{ ocrStatusLabel(doc.ocr.status) }}
+                    </q-tooltip>
+                  </div>
                 </q-item-section>
               </q-item>
             </template>
@@ -123,11 +133,37 @@ function ocrStatusColor(status) {
     case 'done':
       return 'positive'
     case 'processing':
-      return 'warning'
+      return 'info'
     case 'error':
       return 'negative'
     default:
-      return 'grey'
+      return 'grey-6'
+  }
+}
+
+function ocrStatusIcon(status) {
+  switch (status) {
+    case 'done':
+      return 'mdi-text-search-variant'
+    case 'error':
+      return 'mdi-alert-circle-outline'
+    case 'pending':
+    default:
+      return 'mdi-timer-sand'
+  }
+}
+
+function ocrStatusLabel(status) {
+  switch (status) {
+    case 'done':
+      return 'OCR erfolgreich - Volltext durchsuchbar'
+    case 'processing':
+      return 'OCR laeuft gerade'
+    case 'error':
+      return 'OCR fehlgeschlagen'
+    case 'pending':
+    default:
+      return 'OCR in Warteschlange'
   }
 }
 </script>
@@ -153,5 +189,14 @@ function ocrStatusColor(status) {
   background: #121212; /* Quasar primary */
   color: white;
   border-radius: 8px;
+}
+
+/* OCR-Status-Icon zentrieren und Klickziel fuer Tooltip stabil halten */
+.ocr-icon-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
 }
 </style>

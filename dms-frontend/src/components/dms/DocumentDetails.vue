@@ -14,7 +14,9 @@
           icon="mdi-file-upload-outline"
           :disable="!document"
           @click="onUpload"
-        />
+        >
+          <q-tooltip>Neue Version hochladen (Check-in)</q-tooltip>
+        </q-btn>
         <q-btn
           class="q-mr-sm"
           color="secondary"
@@ -24,7 +26,9 @@
           icon="mdi-file-download-outline"
           :disable="!document"
           @click="onDownload"
-        />
+        >
+          <q-tooltip>Datei herunterladen</q-tooltip>
+        </q-btn>
         <q-btn
           class="q-mr-sm"
           color="primary"
@@ -34,7 +38,9 @@
           icon="mdi-printer"
           :disable="!document"
           @click="onPrint"
-        />
+        >
+          <q-tooltip>Drucken</q-tooltip>
+        </q-btn>
         <q-btn
           class="q-mr-sm"
           color="primary"
@@ -44,7 +50,9 @@
           icon="edit"
           :disable="!document"
           @click="onEdit"
-        />
+        >
+          <q-tooltip>Titel, Labels und Ordner bearbeiten</q-tooltip>
+        </q-btn>
         <q-btn
           color="negative"
           round
@@ -53,9 +61,37 @@
           icon="delete"
           :disable="!document"
           @click="onDelete"
-        />
+        >
+          <q-tooltip>Dokument loeschen</q-tooltip>
+        </q-btn>
       </div>
     </q-card-section>
+
+    <!-- OCR-Status-Banner: macht Verarbeitungsstand klar lesbar -->
+    <q-banner
+      v-if="document?.ocr?.status"
+      :class="ocrBannerClass"
+      dense
+      class="q-mx-md q-mb-sm ocr-banner"
+    >
+      <template #avatar>
+        <q-spinner
+          v-if="document.ocr.status === 'processing'"
+          color="info"
+          size="22px"
+        />
+        <q-icon
+          v-else
+          :name="ocrStatusIcon"
+          :color="ocrStatusColor"
+          size="22px"
+        />
+      </template>
+      <div class="text-body2">
+        <strong>{{ ocrStatusTitle }}</strong>
+        <div class="text-caption text-grey-7">{{ ocrStatusHint }}</div>
+      </div>
+    </q-banner>
 
     <q-separator />
 
@@ -133,7 +169,9 @@
           icon="mdi-content-save"
           :disable="!document"
           @click="emit('save-note')"
-        />
+        >
+          <q-tooltip>Notizen speichern</q-tooltip>
+        </q-btn>
       </div>
     </q-card-section>
 
@@ -157,7 +195,7 @@
 </template>
 
 <script setup>
-import { defineProps, defineEmits } from 'vue'
+import { defineProps, defineEmits, computed } from 'vue'
 
 const props = defineProps({
   document: { type: Object, default: null },
@@ -165,6 +203,55 @@ const props = defineProps({
   addingNote: { type: Boolean, default: false },
   downloading: { type: Boolean, default: false },
   uploading: { type: Boolean, default: false },
+})
+
+// OCR-Status-Banner: Icon, Farbe, Titel, Erklaerungstext
+const ocrStatusIcon = computed(() => {
+  switch (props.document?.ocr?.status) {
+    case 'done': return 'mdi-text-search-variant'
+    case 'error': return 'mdi-alert-circle-outline'
+    case 'pending':
+    default: return 'mdi-timer-sand'
+  }
+})
+
+const ocrStatusColor = computed(() => {
+  switch (props.document?.ocr?.status) {
+    case 'done': return 'positive'
+    case 'processing': return 'info'
+    case 'error': return 'negative'
+    default: return 'grey-6'
+  }
+})
+
+const ocrStatusTitle = computed(() => {
+  switch (props.document?.ocr?.status) {
+    case 'done': return 'OCR erfolgreich'
+    case 'processing': return 'OCR laeuft'
+    case 'error': return 'OCR fehlgeschlagen'
+    case 'pending':
+    default: return 'OCR steht in Warteschlange'
+  }
+})
+
+const ocrStatusHint = computed(() => {
+  switch (props.document?.ocr?.status) {
+    case 'done': return 'Volltext ist durchsuchbar'
+    case 'processing': return 'Texterkennung wird gerade ausgefuehrt - kann je nach Seitenzahl etwas dauern'
+    case 'error': return props.document?.ocr?.errorMessage || 'OCR konnte nicht abgeschlossen werden'
+    case 'pending':
+    default: return 'Wird gleich vom Worker abgearbeitet'
+  }
+})
+
+const ocrBannerClass = computed(() => {
+  switch (props.document?.ocr?.status) {
+    case 'done': return 'bg-green-1 text-green-10'
+    case 'processing': return 'bg-blue-1 text-blue-10'
+    case 'error': return 'bg-red-1 text-red-10'
+    case 'pending':
+    default: return 'bg-grey-2 text-grey-9'
+  }
 })
 
 const emit = defineEmits([
@@ -212,3 +299,9 @@ function onPrint() {
   emit('print-document')
 }
 </script>
+
+<style scoped>
+.ocr-banner {
+  border-radius: 8px;
+}
+</style>
