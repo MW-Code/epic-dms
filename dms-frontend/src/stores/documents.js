@@ -2,6 +2,10 @@
 import { defineStore } from 'pinia'
 import { api } from 'src/boot/axios'
 
+// Status-Werte, fuer die das Frontend weiter pollen muss
+const PENDING_OCR_STATES = ['pending', 'processing']
+const POLL_INTERVAL_MS = 3000
+
 export const useDocumentStore = defineStore('documents', {
   state: () => ({
     items: [], // Dokumentliste für Sidebar und Übersichten
@@ -16,6 +20,10 @@ export const useDocumentStore = defineStore('documents', {
     downloading: false,
     uploading: false,
     addingNote: false,
+
+    // Interne Polling-Handles (nicht reaktiv genutzt)
+    _pollDetailTimer: null,
+    _pollListTimer: null,
   }),
 
   getters: {
@@ -54,6 +62,8 @@ export const useDocumentStore = defineStore('documents', {
         if (!this.selectedId && this.items.length) {
           await this.select(this.items[0]._id)
         }
+
+        this._scheduleListPollIfPending()
       } finally {
         this.loadingList = false
       }
@@ -63,6 +73,73 @@ export const useDocumentStore = defineStore('documents', {
       if (!id) return
       const res = await api.get(`/documents/${id}`)
       this.selected = res.data
+      this._scheduleDetailPollIfPending()
+    },
+
+    // Pollt das selektierte Doc, solange OCR noch laeuft, und stoppt sich selbst.
+    _scheduleDetailPollIfPending() {
+      this._stopDetailPoll()
+      const status = this.selected?.ocr?.status
+      if (!PENDING_OCR_STATES.includes(status)) return
+
+      const id = this.selectedId
+      this._pollDetailTimer = setTimeout(async () => {
+        // Auswahl koennte gewechselt haben - dann ist das Polling obsolet
+        if (this.selectedId !== id) return
+        try {
+          await this.loadDetails(id)
+          // OCR-Badge in der Liste passt sich auch an
+          await this._refreshListItemOcr(id)
+        } catch {
+          // Netz-Fehler -> einfach beim naechsten Poll wieder versuchen
+          this._scheduleDetailPollIfPending()
+        }
+      }, POLL_INTERVAL_MS)
+    },
+
+    _stopDetailPoll() {
+      if (this._pollDetailTimer) {
+        clearTimeout(this._pollDetailTimer)
+        this._pollDetailTimer = null
+      }
+    },
+
+    // Wenn IRGENDEIN Listen-Eintrag noch in pending/processing ist,
+    // pollt der Store die Liste regelmaessig, damit der Sidebar-Badge aktuell wird.
+    _scheduleListPollIfPending() {
+      this._stopListPoll()
+      const hasPending = (this.items || []).some(
+        (d) => PENDING_OCR_STATES.includes(d?.ocr?.status)
+      )
+      if (!hasPending) return
+
+      this._pollListTimer = setTimeout(async () => {
+        try {
+          const res = await api.get('/documents')
+          this.items = res.data.items || []
+        } catch {
+          // Netz-Fehler ignorieren, naechster Tick laeuft trotzdem
+        } finally {
+          this._scheduleListPollIfPending()
+        }
+      }, POLL_INTERVAL_MS)
+    },
+
+    _stopListPoll() {
+      if (this._pollListTimer) {
+        clearTimeout(this._pollListTimer)
+        this._pollListTimer = null
+      }
+    },
+
+    // Aktualisiert nur den ocr-Status eines einzelnen Listen-Items
+    // (z.B. nachdem das selektierte Doc neu geladen wurde).
+    async _refreshListItemOcr(id) {
+      const idx = this.items.findIndex((d) => d._id === id)
+      if (idx === -1) return
+      const status = this.selected?.ocr?.status
+      if (!status) return
+      this.items[idx] = { ...this.items[idx], ocr: { ...(this.items[idx].ocr || {}), status } }
     },
 
     async loadFile(id) {

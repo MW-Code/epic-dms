@@ -6,7 +6,7 @@ const fs = require('node:fs');
 
 const { fixLatin1ToUtf8 } = require('../utils/encoding');
 const { authMiddleware } = require('../middleware/auth');
-const { ocrPdfToText } = require('../ocrService');
+const { enqueueOcr } = require('../queues/ocrQueue');
 
 const Label = require('../models/Label');
 const Document = require('../models/Document');
@@ -197,25 +197,14 @@ router.post(
 
       await doc.save();
 
-      try {
-        // Neue Version direkt verarbeiten, damit Treffer im Frontend sofort passen
-        const text = await ocrPdfToText(file.path);
-        doc.ocr.text = text;
-        doc.ocr.status = 'done';
-        doc.ocr.lastTriedAt = new Date();
-        await doc.save();
-      } catch (err) {
-        console.error('OCR-Fehler (Checkin):', err);
-        doc.ocr.status = 'error';
-        doc.ocr.lastTriedAt = new Date();
-        doc.ocr.errorMessage = (err.stderr || err.message || '').slice(0, 500);
-        await doc.save();
-      }
+      // OCR an Worker delegieren, Request kommt sofort zurueck
+      await enqueueOcr(doc._id);
 
       return res.json({
         id: doc._id,
         version: doc.version,
         checkout: doc.checkout,
+        ocrStatus: doc.ocr.status,
       });
     } catch (err) {
       console.error('Fehler beim Checkin:', err);
@@ -365,33 +354,15 @@ if (labels.length) {
     console.warn('Label bulkWrite Warnung:', e.message);
   }
 }
-      // REVIEW(claude): SKALIERUNGS-BOTTLENECK #1
-      // OCR läuft synchron im Request -> 5-30s pro Upload, parallele Uploads blockieren.
-      // Empfohlen: BullMQ-Queue + Redis. Pseudocode:
-      //   await ocrQueue.add('ocr', { documentId: doc._id });
-      //   return res.status(202).json({ id: doc._id, ocrStatus: 'pending' });
-      // Worker (separater Prozess) zieht Jobs, ruft ocrPdfToText, schreibt zurück.
-      // Frontend pollt /api/documents/:id oder bekommt Push via SSE.
-      try {
-        const text = await ocrPdfToText(file.path);
+      // OCR an Worker delegieren, Request kommt sofort zurueck.
+      // Frontend pollt den OCR-Status (siehe stores/documents.js).
+      await enqueueOcr(doc._id);
 
-        doc.ocr.text = text;
-        doc.ocr.status = 'done';
-        doc.ocr.lastTriedAt = new Date();
-        await doc.save();
-      } catch (err) {
-        console.error('OCR-Fehler:', err);
-        doc.ocr.status = 'error';
-        doc.ocr.lastTriedAt = new Date();
-        doc.ocr.errorMessage = (err.stderr || err.message || '').slice(0, 500);
-        await doc.save();
-      }
-
-      return res.status(201).json({
+      return res.status(202).json({
         id: doc._id,
         title: doc.title,
         uploadedAt: doc.uploadedAt,
-        ocrStatus: doc.ocr.status
+        ocrStatus: doc.ocr.status, // 'pending'
       });
     } catch (err) {
       console.error('Fehler beim Dokument-Upload:', err);
@@ -578,8 +549,10 @@ router.get('/', authMiddleware, async (req, res) => {
     const p = Math.max(parseInt(page, 10) || 1, 1);
     const ps = Math.min(Math.max(parseInt(pageSize, 10) || 20, 1), 100);
 
+    // Nur das grosse ocr.text-Feld weglassen, Status/Engine etc. brauchen wir
+    // fuer den Sidebar-Badge und das OCR-Polling im Frontend.
     const projection = {
-      ocr: 0,
+      'ocr.text': 0,
       notes: 0,
       notesText: 0,
       history: 0,
