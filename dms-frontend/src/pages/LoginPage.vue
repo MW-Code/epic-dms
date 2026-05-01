@@ -3,10 +3,7 @@
     <div class="full-width row justify-center q-px-md">
       <div class="column items-center" style="width: 420px; max-width: 100%">
         <!-- Branding-Block -->
-        <div class="row items-center q-mb-md">
-          <q-icon name="mdi-shield-lock-outline" size="40px" class="text-primary q-mr-sm" />
-          <div class="epic-wordmark" style="font-size: 32px">Epic DMS</div>
-        </div>
+        <img :src="logoUrl" alt="Epic DMS" class="epic-auth-logo q-mb-md" />
         <div class="text-center text-grey-5 q-mb-xl">
           Dein selbst gehosteter Dokumenten-Safe.<br />
           Privat, durchsuchbar, immer erreichbar.
@@ -87,6 +84,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { useAuthStore } from 'src/stores/auth'
+import logoUrl from 'src/assets/logo-epic-dms.png'
 
 const router = useRouter()
 const $q = useQuasar()
@@ -126,5 +124,10 @@ const goRegister = () => {
 .epic-auth-page {
   background: var(--epic-bg);
   min-height: 100vh;
+}
+.epic-auth-logo {
+  width: 320px;
+  max-width: 80%;
+  height: auto;
 }
 </style>

@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/branding/logo-epic-dms.png" alt="Epic DMS" width="480" />
+</p>
+
 # Epic DMS
 
 Selbst gehostetes **Dokumenten-Management-System** mit OCR-Volltextsuche, Versionierung, Checkout/Checkin und Multi-User-Auth. Privat, einfach, schnell aufgesetzt — gedacht fuer kleine Haushalte oder Teams, die ihre Belege, Vertraege und PDFs an einer Stelle bündeln und durchsuchbar machen wollen, ohne sie einer Cloud anzuvertrauen.
@@ -8,15 +12,13 @@ Selbst gehostetes **Dokumenten-Management-System** mit OCR-Volltextsuche, Versio
 
 ## Screenshots
 
-> Hinweis: Die Bilder werden ergaenzt sobald die Live-Demo eingerichtet ist (siehe `docs/screenshots/README.md`).
-
 | Login | Hauptansicht |
 |---|---|
 | ![Login](docs/screenshots/login.png) | ![Dokumentenliste](docs/screenshots/documents-list.png) |
 
-| Upload | OCR-Status |
+| Dialoge | OCR-Status |
 |---|---|
-| ![Upload](docs/screenshots/upload-dialog.png) | ![OCR-Status](docs/screenshots/ocr-status.png) |
+| ![Dialoge](docs/screenshots/documents-dialogs.png) | ![OCR-Status](docs/screenshots/ocr-status.png) |
 
 ---
 

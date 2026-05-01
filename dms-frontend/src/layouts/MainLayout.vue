@@ -2,11 +2,14 @@
   <q-layout view="lHh Lpr lFf" class="bg-dark-page">
     <q-header class="epic-header" elevated>
       <q-toolbar class="q-px-md">
-        <!-- Wortmarke mit Icon -->
-        <div class="row items-center no-wrap epic-brand">
-          <q-icon name="mdi-shield-lock-outline" size="24px" class="text-primary q-mr-sm" />
-          <div class="epic-wordmark text-h6">Epic DMS</div>
-        </div>
+        <!-- Wortmarke (Logo) -->
+        <router-link to="/" class="epic-brand row items-center no-wrap">
+          <img
+            :src="logoUrl"
+            alt="Epic DMS"
+            class="epic-logo"
+          />
+        </router-link>
 
         <q-space />
 
@@ -91,6 +94,7 @@ import { computed } from 'vue'
 
 import { useUiStore } from 'src/stores/ui'
 import { useAuthStore } from 'src/stores/auth'
+import logoUrl from 'src/assets/logo-epic-dms.png'
 
 const uiStore = useUiStore()
 const authStore = useAuthStore()
@@ -136,6 +140,12 @@ const userInitials = computed(() => {
 
 .epic-brand {
   user-select: none;
+  text-decoration: none;
+  cursor: pointer;
+}
+.epic-logo {
+  height: 32px;
+  display: block;
 }
 
 .epic-search :deep(.q-field__control) {
