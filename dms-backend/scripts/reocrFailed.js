@@ -15,11 +15,19 @@ const TARGET_STATUSES = ['error', 'pending', 'processing'];
 (async () => {
   await connectToDatabase();
 
+  // Targets:
+  //  - error / pending / processing -> Worker abgebrochen oder nie durchgelaufen
+  //  - done, aber ocr.text leer -> z.B. PDFs mit existierender Textebene, die
+  //    ein altes ocrService mit --skip-text uebersprungen hat, ohne Text zu
+  //    extrahieren. Mit dem neuen pdftotext-Fast-Path werden die jetzt erfasst.
   const docs = await Document.find({
-    'ocr.status': { $in: TARGET_STATUSES },
     deletedAt: null,
+    $or: [
+      { 'ocr.status': { $in: TARGET_STATUSES } },
+      { 'ocr.status': 'done', $expr: { $lt: [{ $strLenCP: { $ifNull: ['$ocr.text', ''] } }, 30] } },
+    ],
   })
-    .select('_id title ocr.status')
+    .select('_id title ocr.status ocr.text')
     .lean();
 
   if (!docs.length) {

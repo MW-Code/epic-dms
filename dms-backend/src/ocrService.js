@@ -16,26 +16,55 @@ function runCommand(file, args = []) {
   });
 }
 
+// Ab dieser Zeichenanzahl gilt das PDF als "hat eine echte Textebene".
+// Darunter (z.B. nur ein Seitenkopf) lassen wir OCR ueber das ganze Doc laufen.
+const TEXT_LAYER_MIN_CHARS = 30;
+
 /**
- * Führt OCR auf einem PDF aus und gibt den erkannten Text zurück.
- * Erwartet, dass `ocrmypdf` im PATH liegt.
+ * Liefert den Volltext eines PDFs zurueck.
+ *
+ * Strategie:
+ *   1) pdftotext direkt - wenn das PDF schon eine Textebene hat, sind wir
+ *      sofort fertig (spart 5-30 Sekunden OCR pro Dokument).
+ *   2) Sonst (reine Bild-PDFs / Scans): ocrmypdf mit --skip-text als
+ *      Sicherheitsnetz fuer Mischformen, schreibt erkannten Text ins Sidecar.
+ *
+ * Erwartet `pdftotext` (poppler-utils) und `ocrmypdf` im PATH.
  */
 async function ocrPdfToText(pdfPath) {
+  const direct = await tryPdfToText(pdfPath);
+  if (direct && direct.trim().length >= TEXT_LAYER_MIN_CHARS) {
+    return direct;
+  }
+  return ocrWithOcrmypdf(pdfPath);
+}
+
+// pdftotext kommt aus poppler-utils, ist als Abhaengigkeit von ocrmypdf
+// (sowohl im Container als auch nativ via dnf) bereits installiert.
+async function tryPdfToText(pdfPath) {
+  try {
+    const { stdout } = await runCommand('pdftotext', ['-layout', pdfPath, '-']);
+    return stdout;
+  } catch {
+    return '';
+  }
+}
+
+async function ocrWithOcrmypdf(pdfPath) {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ocrmypdf-'));
   const outputPdf = path.join(tmpDir, 'output_ocr.pdf');
   const sidecarTxt = path.join(tmpDir, 'output.txt');
 
-  // --skip-text laesst PDFs mit vorhandener Textebene durchlaufen ohne sie neu
-  // zu rastern. Vorteile: schneller, kein Qualitaetsverlust, umgeht einen
-  // Ghostscript-10.x-Bug bei eingebetteten Schriften (rasterizing failed).
+  // --skip-text umgeht den Ghostscript-10.x-Bug bei eingebetteten Schriften
+  // ("rasterizing failed"). Bei reinen Bild-PDFs hat das keinen Effekt.
   const args = [
     '--skip-text',
     '--sidecar',
     sidecarTxt,
     '-l',
-    'deu',                  // OCR-Sprache
+    'deu',
     pdfPath,
-    outputPdf
+    outputPdf,
   ];
 
   try {
@@ -52,5 +81,5 @@ async function ocrPdfToText(pdfPath) {
 }
 
 module.exports = {
-  ocrPdfToText
+  ocrPdfToText,
 };
