@@ -5,6 +5,8 @@ const path = require('node:path');
 const fs = require('node:fs');
 
 const { fixLatin1ToUtf8 } = require('../utils/encoding');
+const { parseSearchQuery, escapeRegex } = require('../utils/searchQuery');
+const { resolveStoragePath, getUploadDir } = require('../utils/storagePath');
 const { authMiddleware } = require('../middleware/auth');
 const { enqueueOcr } = require('../queues/ocrQueue');
 
@@ -13,18 +15,7 @@ const Document = require('../models/Document');
 
 const router = express.Router();
 
-const UPLOAD_DIR = path.resolve(
-  process.env.UPLOAD_DIR || path.join(__dirname, '..', '..', 'uploads')
-);
-
-// Liefert den absoluten Dateipfad fuer ein Document.
-// Neue Docs speichern nur den Basename, alte Docs (vor Phase 2.3) hatten
-// einen absoluten Host-Pfad in storagePath - beides muss hier funktionieren.
-function resolveStoragePath(storagePath) {
-  if (!storagePath) return null;
-  if (path.isAbsolute(storagePath)) return storagePath;
-  return path.join(UPLOAD_DIR, storagePath);
-}
+const UPLOAD_DIR = getUploadDir();
 
 // REVIEW(claude): Mehrere Punkte:
 //   1) `dest` als String -> Multer verwirft den Originalnamen, deshalb der Encoding-Hack
@@ -51,51 +42,6 @@ function sanitizeTitleFromFileName(fileName) {
   // Encoding reparieren (Ã¤ -> ä usw.)
   const fixed = fixLatin1ToUtf8(fileName);
   return fixed.replace(/\.pdf$/i, '').trim();
-}
-
-
-
-function escapeRegex(str) {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-/**
- * Parsed die Such-Query in:
- *  - include: Begriffe, die enthalten sein müssen
- *  - exclude: Begriffe, die NICHT vorkommen dürfen
- *
- * Syntax:
- *   "Rechnung + Steam -Amazon"
- *   -> include: ["Rechnung", "Steam"]
- *   -> exclude: ["Amazon"]
- */
-function parseSearchQuery(raw) {
-  if (!raw || typeof raw !== 'string') {
-    return { include: [], exclude: [] };
-  }
-
-  // "+" wie ein Leerzeichen behandeln und Mehrfachspaces entfernen
-  const normalized = raw.replace(/\+/g, ' ');
-  const parts = normalized
-    .split(/\s+/)
-    .map((p) => p.trim())
-    .filter((p) => p.length > 0);
-
-  const include = [];
-  const exclude = [];
-
-  for (const part of parts) {
-    if (part.startsWith('-') && part.length > 1) {
-      exclude.push(part.slice(1));
-    } else if (part === '-') {
-      // nacktes "-" ignorieren
-      continue;
-    } else {
-      include.push(part);
-    }
-  }
-
-  return { include, exclude };
 }
 
 

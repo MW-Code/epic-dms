@@ -4,6 +4,9 @@
 
 # Epic DMS
 
+[![Tests](https://github.com/MW-Code/epic-dms/actions/workflows/test.yml/badge.svg)](https://github.com/MW-Code/epic-dms/actions/workflows/test.yml)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 Selbst gehostetes **Dokumenten-Management-System** mit OCR-Volltextsuche, Versionierung, Checkout/Checkin und Multi-User-Auth. Privat, einfach, schnell aufgesetzt — gedacht fuer kleine Haushalte oder Teams, die ihre Belege, Vertraege und PDFs an einer Stelle bündeln und durchsuchbar machen wollen, ohne sie einer Cloud anzuvertrauen.
 
 > Lade ein PDF hoch, das System erkennt den Text (OCR) im Hintergrund und macht ihn durchsuchbar — inklusive Eigennamen, Beträgen und allem, was im Dokument steht.
@@ -382,6 +385,28 @@ Das Frontend liest `dms-frontend/.env`:
 | 429-Fehler beim Login | Rate-Limit greift (10 Versuche / 15 min / IP) — kurz warten oder Limit in `server.js` anpassen |
 
 ---
+
+## Tests
+
+Beide Pakete haben Vitest-Suites:
+
+```bash
+# Backend (Unit + Integration mit mongodb-memory-server, kein Mongo noetig)
+cd dms-backend
+npm test            # einmaliger Lauf
+npm run test:watch  # waehrend Entwicklung
+
+# Frontend (Helper-Smoke-Tests)
+cd dms-frontend
+npm test
+```
+
+GitHub Actions laeuft beide Suites bei jedem Push/PR auf `main` mit Node 20 + 22 (siehe Badge oben).
+
+Was getestet ist:
+- **Backend Unit:** `parseSearchQuery`, `escapeRegex`, `fixLatin1ToUtf8`, `resolveStoragePath`
+- **Backend Integration:** Auth-Flow (Register/Login mit Erst-User-Admin-Logik, Duplikat-Check, Brute-Force-resistente Fehlermeldungen) und Document-CRUD (Listing, Filter mit AND/NOT-Operatoren, OCR-Volltext-Suche, User-Isolation, Patch, Soft-Delete)
+- **Frontend Unit:** Datums-Formatierung (relativ/absolut/Edge-Cases mit `vi.useFakeTimers`)
 
 ## Bekannte Limitationen
 
