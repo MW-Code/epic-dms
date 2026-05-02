@@ -52,6 +52,18 @@
         <q-tooltip>An Breite anpassen</q-tooltip>
       </q-btn>
 
+      <q-separator dark vertical class="q-mx-sm" />
+
+      <!-- OCR-Text als Dialog, vor allem fuer gescannte PDFs ohne Text-Layer -->
+      <q-btn
+        dense flat round size="sm"
+        icon="mdi-text-recognition"
+        :disable="!hasOcrText"
+        @click="ocrTextDialog = true"
+      >
+        <q-tooltip>{{ hasOcrText ? 'OCR-Text anzeigen / kopieren' : 'Kein OCR-Text vorhanden' }}</q-tooltip>
+      </q-btn>
+
       <q-space />
 
       <!-- Find Counter (wenn Suchwort aktiv) -->
@@ -119,11 +131,53 @@
         </template>
       </div>
     </q-card-section>
+
+    <!-- OCR-Text-Dialog: zeigt den extrahierten Volltext (auch fuer Bild-PDFs
+         ohne Text-Layer, wo man im Viewer nicht selektieren kann) -->
+    <q-dialog v-model="ocrTextDialog">
+      <q-card class="epic-dialog ocr-dialog">
+        <q-card-section class="row items-center q-pb-md">
+          <q-icon name="mdi-text-recognition" class="text-primary q-mr-sm" size="24px" />
+          <div class="text-h6 text-weight-medium">OCR-Volltext</div>
+          <q-space />
+          <q-btn flat round dense icon="close" v-close-popup />
+        </q-card-section>
+
+        <q-separator dark />
+
+        <q-card-section class="q-pa-none">
+          <q-input
+            :model-value="document?.ocr?.text || ''"
+            type="textarea"
+            readonly dark borderless
+            class="ocr-textarea"
+            input-class="ocr-textarea__input"
+          />
+        </q-card-section>
+
+        <q-separator dark />
+
+        <q-card-actions align="right" class="q-pa-md">
+          <div class="text-caption text-grey-6 q-mr-md">
+            {{ (document?.ocr?.text || '').length }} Zeichen
+          </div>
+          <q-btn flat no-caps label="Schliessen" color="grey-5" v-close-popup />
+          <q-btn
+            unelevated rounded no-caps
+            color="primary"
+            label="In Zwischenablage"
+            icon="mdi-content-copy"
+            @click="copyOcrText"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-card>
 </template>
 
 <script setup>
 import { computed, ref, watch, nextTick, onBeforeUnmount } from 'vue'
+import { useQuasar } from 'quasar'
 import VuePdfEmbed from 'vue-pdf-embed'
 import 'vue-pdf-embed/dist/styles/textLayer.css'
 import 'vue-pdf-embed/dist/styles/annotationLayer.css'
@@ -136,6 +190,23 @@ const props = defineProps({
 })
 
 const uiStore = useUiStore()
+const $q = useQuasar()
+
+// OCR-Dialog
+const ocrTextDialog = ref(false)
+const hasOcrText = computed(() => (props.document?.ocr?.text || '').trim().length > 0)
+
+async function copyOcrText() {
+  const text = props.document?.ocr?.text || ''
+  if (!text) return
+  try {
+    await navigator.clipboard.writeText(text)
+    $q.notify({ type: 'positive', message: 'OCR-Text kopiert' })
+  } catch (err) {
+    console.error('Clipboard-Fehler:', err)
+    $q.notify({ type: 'negative', message: 'Kopieren fehlgeschlagen' })
+  }
+}
 
 const stageRef = ref(null)
 const pdfRef = ref(null)
@@ -269,6 +340,7 @@ watch(() => props.viewerUrl, () => {
   pageInput.value = 1
   scale.value = 1.0
   matches.value = []
+  ocrTextDialog.value = false
 })
 
 // --- Toolbar Actions ---
@@ -385,19 +457,42 @@ onBeforeUnmount(clearHighlights)
   justify-content: center;
 }
 .empty-state { padding: 32px; user-select: none; }
+
+/* OCR-Text-Dialog: groesserer, lesbarer Block fuer den Volltext */
+.ocr-dialog {
+  width: 720px;
+  max-width: 92vw;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+}
+.ocr-dialog .ocr-textarea {
+  background: rgba(255, 255, 255, 0.02);
+}
+.ocr-dialog :deep(.ocr-textarea__input) {
+  min-height: 320px;
+  max-height: 60vh;
+  padding: 16px 18px;
+  font-family: 'Roboto Mono', ui-monospace, monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--epic-text-primary);
+  white-space: pre-wrap;
+}
 </style>
 
 <style>
 /* Highlights muessen ungescoped sein, weil sie ins per-page-text-layer
    injiziert werden, das nicht zur Komponente gehoert. */
 .epic-find-mark {
-  background: rgba(255, 213, 79, 0.55);
+  background: rgba(255, 213, 79, 0.35);
   color: inherit;
   border-radius: 2px;
   padding: 0 1px;
 }
 .epic-find-mark--current {
-  background: rgba(255, 152, 0, 0.85);
-  outline: 2px solid #ff6f00;
+  background: rgba(255, 152, 0, 0.45);
+  outline: 1.5px solid rgba(255, 111, 0, 0.85);
+  outline-offset: 1px;
 }
 </style>
