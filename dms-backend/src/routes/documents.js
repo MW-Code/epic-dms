@@ -10,7 +10,6 @@ const { resolveStoragePath, getUploadDir } = require('../utils/storagePath');
 const { authMiddleware } = require('../middleware/auth');
 const { enqueueOcr } = require('../queues/ocrQueue');
 
-const Label = require('../models/Label');
 const Document = require('../models/Document');
 
 const router = express.Router();
@@ -300,22 +299,6 @@ let doc = await Document.create({
   },
 });
 
-if (labels.length) {
-  const ops = labels.map(name => ({
-    updateOne: {
-      filter: { ownerId: user.id, name },
-      update: { $setOnInsert: { createdAt: new Date() } },
-      upsert: true,
-    },
-  }));
-
-  try {
-    await Label.bulkWrite(ops, { ordered: false });
-  } catch (e) {
-    // Duplikate etc. ignorieren, nur loggen
-    console.warn('Label bulkWrite Warnung:', e.message);
-  }
-}
       // OCR an Worker delegieren, Request kommt sofort zurueck.
       // Frontend pollt den OCR-Status (siehe stores/documents.js).
       await enqueueOcr(doc._id);
@@ -401,14 +384,13 @@ router.patch('/:id', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: 'Dokument nicht gefunden' });
     }
 
-    let labelsForUpsert = null;
-
     // Titel aktualisieren
     if (typeof req.body.title === 'string') {
       doc.title = fixLatin1ToUtf8(req.body.title).trim();
     }
 
-    // Labels aktualisieren
+    // Labels aktualisieren - werden direkt am Document gespeichert,
+    // der /api/labels-Endpoint aggregiert daraus die Vorschlagsliste.
     if (Array.isArray(req.body.labels)) {
       let labels = req.body.labels
         .map((x) => (typeof x === 'string' ? x : ''))
@@ -419,35 +401,11 @@ router.patch('/:id', authMiddleware, async (req, res) => {
       labels = labels.filter((val, idx, arr) => arr.indexOf(val) === idx);
 
       doc.labels = labels;
-      labelsForUpsert = labels;
     }
-
-    // Optional: für später - muss auch im frontend eingebaut werden!!
-    // if (req.body.documentDate) { update.documentDate = new Date(req.body.documentDate); }
-    // if (typeof req.body.fromParty === 'string') { update.fromParty = fixLatin1ToUtf8(req.body.fromParty).trim(); }
-    // if (typeof req.body.toParty === 'string') { update.toParty = fixLatin1ToUtf8(req.body.toParty).trim(); }
-    // if (typeof req.body.category === 'string') { update.category = fixLatin1ToUtf8(req.body.category).trim(); }
 
     doc.folder = folder || null;
 
     await doc.save();
-
-    // Neue Labels in Label-Collection upserten
-    if (labelsForUpsert && labelsForUpsert.length) {
-      const ops = labelsForUpsert.map((name) => ({
-        updateOne: {
-          filter: { ownerId: user.id, name },
-          update: { $setOnInsert: { createdAt: new Date() } },
-          upsert: true,
-        },
-      }));
-
-      try {
-        await Label.bulkWrite(ops, { ordered: false });
-      } catch (e) {
-        console.warn('Label bulkWrite Warnung (PATCH):', e.message);
-      }
-    }
 
     return res.json(doc.toObject ? doc.toObject() : doc);
   } catch (err) {

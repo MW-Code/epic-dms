@@ -10,6 +10,7 @@
     "dev:worker": "node --watch src/workers/ocrWorker.js",
     "reocr-failed": "node scripts/reocrFailed.js",
     "migrate-paths": "node scripts/migrateStoragePaths.js",
+    "drop-labels": "node scripts/dropLabelsCollection.js",
     "test": "vitest run",
     "test:watch": "vitest"
   },
