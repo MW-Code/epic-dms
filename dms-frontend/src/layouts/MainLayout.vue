@@ -25,13 +25,13 @@
           style="max-width: 460px; flex: 1"
         >
           <template #prepend>
-            <q-icon name="search" class="text-grey-5" />
+            <q-icon name="search" class="epic-search-icon" />
           </template>
           <template #append>
             <q-icon
               v-if="search"
               name="clear"
-              class="cursor-pointer text-grey-5"
+              class="cursor-pointer epic-search-clear"
               @click="search = ''"
             />
           </template>
@@ -149,19 +149,24 @@ const userInitials = computed(() => {
 }
 
 .epic-search :deep(.q-field__control) {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid var(--epic-border);
+  background: rgba(124, 58, 237, 0.06);
+  border: 1px solid rgba(124, 58, 237, 0.25);
   border-radius: 999px;
   padding: 0 16px;
   height: 40px;
-  transition: border-color 0.15s ease, background 0.15s ease;
+  transition:
+    border-color 0.18s ease,
+    background 0.18s ease,
+    box-shadow 0.18s ease;
 }
 .epic-search :deep(.q-field__control:hover) {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(124, 58, 237, 0.1);
+  border-color: rgba(124, 58, 237, 0.45);
 }
 .epic-search :deep(.q-field--focused .q-field__control) {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(124, 58, 237, 0.5);
+  background: rgba(124, 58, 237, 0.12);
+  border-color: rgba(124, 58, 237, 0.7);
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.18);
 }
 .epic-search :deep(.q-field__native) {
   color: var(--epic-text-primary);
@@ -169,6 +174,21 @@ const userInitials = computed(() => {
 }
 .epic-search :deep(.q-field__native::placeholder) {
   color: var(--epic-text-muted);
+}
+
+.epic-search-icon {
+  color: rgba(167, 139, 250, 0.75);
+  transition: color 0.18s ease;
+}
+.epic-search :deep(.q-field--focused) .epic-search-icon {
+  color: var(--q-primary);
+}
+.epic-search-clear {
+  color: rgba(167, 139, 250, 0.65);
+  transition: color 0.15s ease;
+}
+.epic-search-clear:hover {
+  color: var(--q-primary);
 }
 
 .epic-upload-btn {
