@@ -193,3 +193,73 @@ describe('DELETE /api/documents/:id', () => {
     expect(list.body.items).toEqual([]);
   });
 });
+
+describe('POST /api/documents (Multi-Upload)', () => {
+  // Minimaler PDF-Header reicht - Multer prueft nur den Mime-Type des Parts.
+  const fakePdfBytes = Buffer.from('%PDF-1.4\n%fake\n');
+
+  it('legt ein Dokument bei Single-Upload an und nimmt titleOverride', async () => {
+    const res = await request(app)
+      .post('/api/documents')
+      .set('Authorization', `Bearer ${token}`)
+      .field('titleOverride', 'Mein Titel')
+      .field('labels', JSON.stringify(['Wichtig']))
+      .attach('file', fakePdfBytes, {
+        filename: 'eins.pdf',
+        contentType: 'application/pdf',
+      });
+
+    expect(res.status).toBe(202);
+    expect(res.body.items).toHaveLength(1);
+    expect(res.body.items[0].title).toBe('Mein Titel');
+    expect(res.body.failed).toEqual([]);
+  });
+
+  it('legt N Dokumente bei Multi-Upload an, ignoriert titleOverride und teilt Labels/Folder', async () => {
+    const res = await request(app)
+      .post('/api/documents')
+      .set('Authorization', `Bearer ${token}`)
+      .field('titleOverride', 'Sollte ignoriert werden')
+      .field('folder', 'Steuer 2026')
+      .field('labels', JSON.stringify(['Quittung', 'Wichtig']))
+      .attach('file', fakePdfBytes, { filename: 'doc-a.pdf', contentType: 'application/pdf' })
+      .attach('file', fakePdfBytes, { filename: 'doc-b.pdf', contentType: 'application/pdf' })
+      .attach('file', fakePdfBytes, { filename: 'doc-c.pdf', contentType: 'application/pdf' });
+
+    expect(res.status).toBe(202);
+    expect(res.body.items).toHaveLength(3);
+    // Pro Datei der Dateiname als Titel, NICHT der Override
+    const titles = res.body.items.map((it) => it.title).sort();
+    expect(titles).toEqual(['doc-a', 'doc-b', 'doc-c']);
+
+    // Listing zeigt alle 3, geteilte Felder gesetzt
+    const list = await request(app)
+      .get('/api/documents')
+      .set('Authorization', `Bearer ${token}`);
+    expect(list.body.items).toHaveLength(3);
+    for (const item of list.body.items) {
+      expect(item.folder).toBe('Steuer 2026');
+      expect(item.labels).toEqual(['Quittung', 'Wichtig']);
+    }
+  });
+
+  it('liefert 400 wenn keine Datei gesendet wurde', async () => {
+    const res = await request(app)
+      .post('/api/documents')
+      .set('Authorization', `Bearer ${token}`)
+      .field('titleOverride', 'leer');
+    expect(res.status).toBe(400);
+  });
+
+  it('lehnt Nicht-PDF-Datei ab', async () => {
+    const res = await request(app)
+      .post('/api/documents')
+      .set('Authorization', `Bearer ${token}`)
+      .attach('file', Buffer.from('hello'), {
+        filename: 'foo.txt',
+        contentType: 'text/plain',
+      });
+    // Multer liefert 500 mit Fehler-Message - Hauptsache nicht 202.
+    expect(res.status).not.toBe(202);
+  });
+});

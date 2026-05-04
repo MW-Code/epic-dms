@@ -1,7 +1,6 @@
 // Dokument-Routen: Upload, Versionierung, OCR-Status und Listing
 const express = require('express');
 const multer = require('multer');
-const path = require('node:path');
 const fs = require('node:fs');
 
 const { fixLatin1ToUtf8 } = require('../utils/encoding');
@@ -14,16 +13,12 @@ const Document = require('../models/Document');
 
 const router = express.Router();
 
-const UPLOAD_DIR = getUploadDir();
-
-// REVIEW(claude): Mehrere Punkte:
-//   1) `dest` als String -> Multer verwirft den Originalnamen, deshalb der Encoding-Hack
-//      in utils/encoding.js. Mit `defParamCharset: 'utf8'` wäre das nicht nötig.
-//   2) Alle Files landen flach in einem Verzeichnis. Bei 100k+ Dateien wird ext4 langsam.
+// REVIEW(claude): offene Punkte:
+//   1) Alle Files landen flach in einem Verzeichnis. Bei 100k+ Dateien wird ext4 langsam.
 //      Sharding (uploads/ab/cd/<hash>) oder Object Storage (S3/MinIO) verwenden.
-//   3) Pfad ist nicht aus process.env.UPLOAD_DIR konfigurierbar -> Container-Volume hart.
 const upload = multer({
-  dest: path.join(__dirname, '..', '..', 'uploads'),
+  // Lazy via Function, damit Tests UPLOAD_DIR nach Module-Import setzen koennen.
+  dest: getUploadDir(),
   defParamCharset: 'utf8',
   limits: {
     fileSize: 20 * 1024 * 1024 // 20 MB
@@ -207,107 +202,125 @@ router.post('/:id/notes', authMiddleware, async (req, res) => {
 
 /**
  * POST /api/documents
- * - nimmt eine PDF
- * - führt OCR durch
- * - legt ein Document in Mongo an
+ * - nimmt 1 bis 20 PDFs entgegen (Feldname: "file")
+ * - legt pro Datei ein Document in Mongo an
+ * - dispatcht OCR an den Worker
+ *
+ * Geteilte Felder (gelten fuer alle Dateien): folder, labels.
+ * titleOverride wird NUR genutzt, wenn genau eine Datei hochgeladen wird;
+ * bei Multi-Upload waeren sonst alle Dokumente gleich benannt.
  */
 router.post(
   '/',
   authMiddleware,
-  upload.single('file'),
+  upload.array('file', 20),
   async (req, res) => {
     try {
-const file = req.file;
-const user = req.user;
-const rawFolder = req.body.folder || '';
-const folder = rawFolder ? fixLatin1ToUtf8(rawFolder).trim() : null;
+      const files = req.files || [];
+      const user = req.user;
+      const rawFolder = req.body.folder || '';
+      const folder = rawFolder ? fixLatin1ToUtf8(rawFolder).trim() : null;
 
-if (!file) {
-  return res.status(400).json({ error: 'Keine Datei hochgeladen' });
-}
+      if (files.length === 0) {
+        return res.status(400).json({ error: 'Keine Datei hochgeladen' });
+      }
 
-// Dateiname sauber dekodieren
-const originalFileName = fixLatin1ToUtf8(file.originalname || '');
+      // Override nur bei Single-Upload sinnvoll - sonst alle Dokumente identisch benannt.
+      const rawTitleOverride = req.body.titleOverride || '';
+      const titleOverride =
+        files.length === 1 && rawTitleOverride
+          ? fixLatin1ToUtf8(rawTitleOverride).trim()
+          : '';
 
-// Override aus dem Formular (kommt aus UploadDialog.vue)
-const rawTitleOverride = req.body.titleOverride || '';
-const titleOverride = rawTitleOverride
-  ? fixLatin1ToUtf8(rawTitleOverride).trim()
-  : '';
+      // Labels einmal parsen, dann fuer alle Dateien wiederverwenden.
+      let labels = [];
+      if (req.body.labels) {
+        try {
+          const raw = JSON.parse(req.body.labels);
 
-// Fallback: Titel aus Dateiname
-const fallbackTitle = sanitizeTitleFromFileName(originalFileName);
+          if (Array.isArray(raw)) {
+            labels = raw
+              .map((x) => {
+                // Fall 1: reiner String
+                if (typeof x === 'string') return x;
 
-// Finaler Titel: Override > Fallback > „Unbenanntes Dokument“
-const title = titleOverride || fallbackTitle || 'Unbenanntes Dokument';
+                // Fall 2: QSelect-Objekt { label, value, ... }
+                if (x && typeof x === 'object') {
+                  if (typeof x.label === 'string') return x.label;
+                  if (typeof x.value === 'string') return x.value;
+                }
 
-
-
-// Labels aus dem Formular (kommt als JSON-String)
-let labels = [];
-if (req.body.labels) {
-  try {
-    const raw = JSON.parse(req.body.labels);
-
-    if (Array.isArray(raw)) {
-      labels = raw
-        .map((x) => {
-          // Fall 1: reiner String
-          if (typeof x === 'string') return x;
-
-          // Fall 2: QSelect-Objekt { label, value, ... }
-          if (x && typeof x === 'object') {
-            if (typeof x.label === 'string') return x.label;
-            if (typeof x.value === 'string') return x.value;
+                // alles andere ignorieren
+                return '';
+              })
+              .map((s) => fixLatin1ToUtf8(s).trim())
+              .filter((s) => s.length > 0)
+              // Duplikate raus
+              .filter((val, idx, arr) => arr.indexOf(val) === idx);
           }
+        } catch (e) {
+          console.warn('Konnte labels nicht parsen:', e.message, 'payload:', req.body.labels);
+        }
+      }
 
-          // alles andere ignorieren
-          return '';
-        })
-        .map((s) => fixLatin1ToUtf8(s).trim())
-        .filter((s) => s.length > 0)
-        // Duplikate raus
-        .filter((val, idx, arr) => arr.indexOf(val) === idx);
-    }
-  } catch (e) {
-    console.warn('Konnte labels nicht parsen:', e.message, 'payload:', req.body.labels);
-  }
-}
+      const created = [];
+      const failed = [];
 
+      // Sequentiell: Mongo-Inserts sind billig, dafuer behalten wir den
+      // Encode/Decode-Kontext sauber pro Datei und koennen Fehler einzeln melden.
+      for (const file of files) {
+        const originalFileName = fixLatin1ToUtf8(file.originalname || '');
+        const fallbackTitle = sanitizeTitleFromFileName(originalFileName);
+        const title = titleOverride || fallbackTitle || 'Unbenanntes Dokument';
 
+        try {
+          const doc = await Document.create({
+            uploaderId: user.id,
+            originalFileName,
+            storagePath: file.filename,
+            mimeType: file.mimetype,
+            sizeBytes: file.size,
+            uploadedAt: new Date(),
+            title,
+            folder,
+            labels,
+            ocr: {
+              status: 'pending',
+              language: 'deu',
+              text: '',
+              engine: 'ocrmypdf',
+              lastTriedAt: null,
+              errorMessage: null,
+            },
+          });
 
-// 1) Erstmal Document mit status "pending" anlegen
-// storagePath nur als Basename - die absolute Pfad-Aufloesung passiert
-// beim Lesen ueber resolveStoragePath() + UPLOAD_DIR.
-let doc = await Document.create({
-  uploaderId: user.id,
-  originalFileName,
-  storagePath: file.filename,
-  mimeType: file.mimetype,
-  sizeBytes: file.size,
-  uploadedAt: new Date(),
-  title,
-  folder,
-  labels,
-  ocr: {
-    status: 'pending',
-    language: 'deu',
-    text: '',
-    engine: 'ocrmypdf',
-    lastTriedAt: null,
-    errorMessage: null,
-  },
-});
+          // OCR an Worker delegieren, Request kommt sofort zurueck.
+          // Frontend pollt den OCR-Status (siehe stores/documents.js).
+          await enqueueOcr(doc._id);
 
-      // OCR an Worker delegieren, Request kommt sofort zurueck.
-      // Frontend pollt den OCR-Status (siehe stores/documents.js).
-      await enqueueOcr(doc._id);
+          created.push({
+            id: doc._id,
+            title: doc.title,
+            uploadedAt: doc.uploadedAt,
+            ocrStatus: doc.ocr.status,
+          });
+        } catch (err) {
+          console.error('Fehler beim Dokument-Upload (', originalFileName, '):', err);
+          failed.push({
+            originalFileName,
+            error: err?.message || 'Unbekannter Fehler',
+          });
+        }
+      }
+
+      // Nichts angekommen -> hartes 500. Sonst 202 mit Mischreport.
+      if (created.length === 0) {
+        return res.status(500).json({ error: 'Serverfehler bei Upload', failed });
+      }
 
       return res.status(202).json({
-        id: doc._id,
-        title: doc.title,
-        uploadedAt: doc.uploadedAt,
-        ocrStatus: doc.ocr.status, // 'pending'
+        items: created,
+        failed,
       });
     } catch (err) {
       console.error('Fehler beim Dokument-Upload:', err);

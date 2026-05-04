@@ -1,15 +1,9 @@
 // Gemeinsame Helfer fuer Integration-Tests.
-// Startet eine In-Memory-Mongo, baut eine express-App ohne BullMQ-Connection
-// und gibt einen supertest-Agent zurueck.
+// Startet eine In-Memory-Mongo, baut eine express-App und gibt einen
+// supertest-Agent zurueck. Die OCR-Queue wird ueber DMS_DISABLE_QUEUE=1
+// (gesetzt in tests/setup.js) auf einen Noop-Stub umgebogen.
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import mongoose from 'mongoose';
-import { vi } from 'vitest';
-
-// BullMQ-Queue komplett mocken - kein Redis im Test.
-vi.mock('../../src/queues/ocrQueue.js', () => ({
-  enqueueOcr: vi.fn(async () => ({ id: 'mock-job' })),
-  ocrQueue: { close: vi.fn() },
-}));
 
 let mongoServer;
 
