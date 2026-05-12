@@ -24,6 +24,11 @@ export const useDocumentStore = defineStore('documents', {
     // Interne Polling-Handles (nicht reaktiv genutzt)
     _pollDetailTimer: null,
     _pollListTimer: null,
+
+    // Letzte Filter, damit der OCR-Poller die gleiche Sicht nachlaedt
+    // und nicht versehentlich auf "alle Dokumente" zurueckspringt.
+    _lastQuery: '',
+    _lastFolder: '',
   }),
 
   getters: {
@@ -48,13 +53,11 @@ export const useDocumentStore = defineStore('documents', {
     async fetchList(query, folder) {
       this.loadingList = true
       try {
-        const params = {}
-        if (query && query.trim()) {
-          params.q = query.trim()
-        }
-        if (folder && folder.trim()) {
-          params.folder = folder.trim()
-        }
+        // Filter merken, damit der Poll-Tick die gleiche Sicht behaelt.
+        this._lastQuery = (query || '').trim()
+        this._lastFolder = (folder || '').trim()
+
+        const params = this._listParams()
 
         const res = await api.get('/documents', { params })
         this.items = res.data.items || []
@@ -67,6 +70,13 @@ export const useDocumentStore = defineStore('documents', {
       } finally {
         this.loadingList = false
       }
+    },
+
+    _listParams() {
+      const params = {}
+      if (this._lastQuery) params.q = this._lastQuery
+      if (this._lastFolder) params.folder = this._lastFolder
+      return params
     },
 
     async loadDetails(id) {
@@ -115,7 +125,9 @@ export const useDocumentStore = defineStore('documents', {
 
       this._pollListTimer = setTimeout(async () => {
         try {
-          const res = await api.get('/documents')
+          // Gleiche Filter wie fetchList, sonst springt die Sidebar
+          // waehrend OCR-Verarbeitung auf "alle Dokumente".
+          const res = await api.get('/documents', { params: this._listParams() })
           this.items = res.data.items || []
         } catch {
           // Netz-Fehler ignorieren, naechster Tick laeuft trotzdem

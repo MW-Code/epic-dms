@@ -263,7 +263,6 @@ function applyHighlights() {
     const walker = document.createTreeWalker(textLayer, NodeFilter.SHOW_TEXT)
     const nodes = []
     let n
-    // eslint-disable-next-line no-cond-assign
     while ((n = walker.nextNode())) nodes.push(n)
 
     const re = new RegExp(escapeRegExp(term), 'gi')

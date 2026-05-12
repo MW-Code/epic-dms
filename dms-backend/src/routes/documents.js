@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const { fixLatin1ToUtf8 } = require('../utils/encoding');
 const { parseSearchQuery, escapeRegex } = require('../utils/searchQuery');
 const { resolveStoragePath, getUploadDir } = require('../utils/storagePath');
+const { hasPdfMagicBytes, safeUnlink } = require('../utils/pdfValidation');
 const { authMiddleware } = require('../middleware/auth');
 const { enqueueOcr } = require('../queues/ocrQueue');
 
@@ -88,13 +89,20 @@ router.post(
   authMiddleware,
   upload.single('file'),
   async (req, res) => {
+    const file = req.file;
     try {
       const user = req.user;
       const { id } = req.params;
-      const file = req.file;
 
       if (!file) {
         return res.status(400).json({ error: 'Keine Datei hochgeladen' });
+      }
+
+      // mimetype ist Client-gesteuert, daher zusaetzlich Magic Bytes pruefen.
+      const isPdf = await hasPdfMagicBytes(file.path);
+      if (!isPdf) {
+        await safeUnlink(file.path);
+        return res.status(400).json({ error: 'Datei ist keine gueltige PDF' });
       }
 
       let doc = await Document.findOne({
@@ -104,11 +112,13 @@ router.post(
       });
 
       if (!doc) {
+        await safeUnlink(file.path);
         return res.status(404).json({ error: 'Dokument nicht gefunden' });
       }
 
       // Blockiere nur, wenn ein anderer User den Checkout hält
       if (doc.checkout?.isCheckedOut && String(doc.checkout.byUserId) !== String(user.id)) {
+        await safeUnlink(file.path);
         return res
           .status(409)
           .json({ error: 'Dokument ist von einem anderen Benutzer ausgecheckt' });
@@ -162,6 +172,8 @@ router.post(
       });
     } catch (err) {
       console.error('Fehler beim Checkin:', err);
+      // Multer-Datei haengt bei Fehlern nach diesem Punkt noch im Dateisystem.
+      await safeUnlink(file?.path);
       return res.status(500).json({ error: 'Serverfehler bei Checkin' });
     }
   },
@@ -274,6 +286,12 @@ router.post(
         const title = titleOverride || fallbackTitle || 'Unbenanntes Dokument';
 
         try {
+          // mimetype kommt vom Client, daher zusaetzlich Magic Bytes pruefen.
+          const isPdf = await hasPdfMagicBytes(file.path);
+          if (!isPdf) {
+            throw new Error('Datei ist keine gueltige PDF (Magic Bytes fehlen)');
+          }
+
           const doc = await Document.create({
             uploaderId: user.id,
             originalFileName,
@@ -296,7 +314,13 @@ router.post(
 
           // OCR an Worker delegieren, Request kommt sofort zurueck.
           // Frontend pollt den OCR-Status (siehe stores/documents.js).
-          await enqueueOcr(doc._id);
+          try {
+            await enqueueOcr(doc._id);
+          } catch (enqueueErr) {
+            // Queue down -> Doc + Datei wieder entfernen, damit nichts Halbgares zurueckbleibt.
+            await Document.deleteOne({ _id: doc._id }).catch(() => {});
+            throw enqueueErr;
+          }
 
           created.push({
             id: doc._id,
@@ -306,6 +330,8 @@ router.post(
           });
         } catch (err) {
           console.error('Fehler beim Dokument-Upload (', originalFileName, '):', err);
+          // Verwaiste Multer-Datei aufraeumen, sonst muellt sich uploads/ zu.
+          await safeUnlink(file.path);
           failed.push({
             originalFileName,
             error: err?.message || 'Unbekannter Fehler',
